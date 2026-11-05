@@ -93,7 +93,7 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [files, setFiles] = useState<File[]>([]);
-  const [webSearch, setWebSearch] = useState(false);
+  const [webSearch, setWebSearch] = useState(true);
   const [generateImage, setGenerateImage] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<Record<string, string[]>>({});
   const attachmentInputRef = useRef<HTMLInputElement>(null);
@@ -505,6 +505,9 @@ export default function Home() {
                   <div className="message-body">
                     <div className="message-heading"><div className="message-name">{message.role === 'assistant' ? 'آفاق AI' : 'أنت'}</div><time>{formatDate(message.createdAt)}</time></div>
                     <div className="message-text" style={{ fontSize: settings.fontSize }}>{message.content || (loading && message.role === 'assistant' ? <span className="typing"><i /><i /><i /> آفاق يفكر</span> : '')}</div>
+                    {message.files?.length ? <div className="message-attachments">{message.files.map((file, index) => <span key={index}><FileText size={13} /> {file.name}</span>)}</div> : null}
+                    {generatedImages[message.id]?.map((image, index) => <img key={index} className="generated-image" src={image} alt="صورة أنشأها آفاق" />)}
+                    {message.citations?.length ? <div className="message-citations"><b>المصادر</b>{message.citations.map((citation, index) => <a key={index} href={citation.url} target="_blank" rel="noreferrer">{citation.title}</a>)}</div> : null}
                     <div className="message-tools">
                       {message.role === 'assistant' && message.content && <button onClick={() => copyText(message.id, message.content)}><Copy size={13} /> {copiedId === message.id ? 'تم النسخ' : 'نسخ الإجابة'}</button>}
                       {message.role === 'user' && <button onClick={() => editMessage(activeChat, message)}><Pencil size={13} /> تعديل الطلب</button>}
@@ -533,13 +536,38 @@ export default function Home() {
 
         <div className="composer-area">
           {error && <div className="error-note">{error}</div>}
+          <input
+            ref={attachmentInputRef}
+            type="file"
+            hidden
+            multiple
+            accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.md,.json"
+            onChange={event => {
+              const selected = Array.from(event.target.files || []);
+              setFiles(current => [...current, ...selected].slice(0, 6));
+              event.target.value = "";
+            }}
+          />
           <div className="composer">
+            {files.length > 0 && <div className="attachment-preview">{files.map((file, index) => (
+              <span className="attachment-chip" key={index}><FileText size={13} />{file.name}<button onClick={() => setFiles(current => current.filter((_, itemIndex) => itemIndex !== index))} aria-label="إزالة الملف"><X size={12} /></button></span>
+            ))}</div>}
             <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => {
-              if (e.key === 'Enter' && settings.enterToSend && !e.shiftKey) { e.preventDefault(); send(); }
-            }} placeholder="اكتب سؤالك أو فكرتك إلى آفاق..." rows={1} disabled={loading} aria-label="اكتب رسالتك" />
-            <div className="composer-tools"><div className="composer-hints"><span className="hint-divider" /><span>{settings.enterToSend ? 'Enter للإرسال · Shift + Enter لسطر جديد' : 'Enter لسطر جديد'}</span></div><button className="send-btn" onClick={() => send()} disabled={!input.trim() || loading} aria-label="إرسال الرسالة">{loading ? <span className="send-spinner" /> : <ArrowUp size={19} />}</button></div>
+              if (e.key === "Enter" && settings.enterToSend && !e.shiftKey) { e.preventDefault(); send(); }
+            }} placeholder="اسأل آفاق أي شيء..." rows={2} disabled={loading} aria-label="اكتب رسالتك" />
+            <div className="composer-tools">
+              <div className="composer-actions">
+                <button className="composer-action" onClick={() => attachmentInputRef.current?.click()} disabled={loading} aria-label="إرفاق ملفات"><Paperclip size={17} /><span>إرفاق</span></button>
+                <button className={"composer-action " + (webSearch ? "active" : "")} onClick={() => setWebSearch(value => !value)} disabled={loading} aria-pressed={webSearch}><Globe2 size={16} /><span>بحث الويب</span></button>
+                <button className={"composer-action " + (generateImage ? "active" : "")} onClick={() => setGenerateImage(value => !value)} disabled={loading} aria-pressed={generateImage}><ImagePlus size={16} /><span>إنشاء صورة</span></button>
+              </div>
+              <div className="composer-submit">
+                <div className="composer-hints"><span>{settings.enterToSend ? "Enter للإرسال · Shift + Enter لسطر جديد" : "Enter لسطر جديد"}</span></div>
+                <button className="send-btn" onClick={() => send()} disabled={(!input.trim() && !files.length) || loading} aria-label="إرسال الرسالة">{loading ? <span className="send-spinner" /> : <ArrowUp size={19} />}</button>
+              </div>
+            </div>
           </div>
-          <p className="disclaimer">قد يخطئ الذكاء الاصطناعي. لا ترسل كلمات المرور أو المعلومات السرية.</p>
+          <p className="disclaimer">آفاق يستخدم البحث والملفات والأدوات عند الحاجة. راجع المصادر والمعلومات المهمة.</p>
         </div>
       </section>
 
