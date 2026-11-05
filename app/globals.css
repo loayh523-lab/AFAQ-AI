@@ -236,3 +236,13 @@ button:disabled{cursor:not-allowed;opacity:.45}
   .welcome-foot{font-size:8px}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
+
+
+/* AFAQ AI identity system */
+.brand-mark{overflow:hidden;border:1px solid rgba(77,151,255,.42);background:#060b16;box-shadow:0 7px 24px rgba(44,111,238,.22),0 0 18px rgba(37,198,138,.08)}
+.brand-mark img{display:block;width:100%;height:100%;object-fit:cover}
+.brand small{font-size:7px;letter-spacing:.75px;white-space:nowrap}
+.orb-core{overflow:hidden;background:#060b16;border:1px solid rgba(95,169,255,.5);box-shadow:0 0 48px rgba(48,112,235,.26),0 0 24px rgba(37,198,138,.12);transform:none}
+.orb-core img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
+.model-select{font:700 9px var(--font-en);letter-spacing:.7px;color:var(--green)}
+.profile-status{font:700 8px var(--font-en);letter-spacing:.8px;color:var(--green)}
