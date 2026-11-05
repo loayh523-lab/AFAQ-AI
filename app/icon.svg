@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+<defs>
+ <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#438cff"/><stop offset="1" stop-color="#153b83"/></linearGradient>
+ <linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#7ddcff"/><stop offset=".52" stop-color="#397bff"/><stop offset="1" stop-color="#22c98d"/></linearGradient>
+ <linearGradient id="orbit" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#20d69a"/><stop offset=".5" stop-color="#51d5ff"/><stop offset="1" stop-color="#20d69a"/></linearGradient>
+</defs>
+<rect x="4" y="4" width="120" height="120" rx="29" fill="#060b16" stroke="url(#edge)" stroke-width="3"/>
+<circle cx="64" cy="62" r="43" fill="none" stroke="#2464b8" stroke-opacity=".45" stroke-width="1.5"/>
+<path d="M25 62a39 39 0 0 1 78 0M33 84a39 39 0 0 0 62 0" fill="none" stroke="#28a9e9" stroke-opacity=".42" stroke-width="1.4"/>
+<path d="M64 25 31 96h16l17-37 17 37h16L64 25Z" fill="url(#a)" stroke="#a5eaff" stroke-opacity=".7" stroke-width="1.2" stroke-linejoin="round"/>
+<path d="M20 83c19-21 65-31 89-15 10 7 5 17-9 21-23 7-61-4-75 8" fill="none" stroke="url(#orbit)" stroke-width="5" stroke-linecap="round"/>
+<path d="M64 12v11M58.5 17.5h11" stroke="#b9fff0" stroke-width="2" stroke-linecap="round"/>
+<circle cx="103" cy="34" r="2.5" fill="#35d99d"/>
+</svg>
