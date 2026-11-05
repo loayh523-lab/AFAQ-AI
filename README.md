@@ -2,42 +2,50 @@
 
 **Intelligence Beyond Limits**
 
-AFAQ AI is an Arabic-first multi-model AI workspace for conversations, programming help, and creative work.
+AFAQ AI is an Arabic-first AI workspace. The first test build runs a small open model directly in the browser with WebGPU.
 
 ## Current MVP
+
 - Premium responsive Arabic RTL chat interface.
-- Provider switcher for Google Gemini and OpenAI-compatible APIs.
-- Server-side API routes; API keys are never exposed to the browser.
-- Mobile-friendly layout and in-session conversation state.
+- Local inference using WebLLM and Qwen 2.5 0.5B Instruct (4-bit).
+- No provider API key is required for the local test model.
+- Chat prompts are processed on the device after the model files are downloaded.
+- Model loading progress and a clear WebGPU compatibility message.
+
+## Requirements
+
+- A modern browser with WebGPU support.
+- Approximately 945 MB of available GPU memory for this model configuration.
+- A stable connection for the first model download. The browser caches model files for later use where supported.
+- Devices without compatible WebGPU hardware cannot run this local model in the browser.
+
+The 0.5B model is intentionally small for an initial test. It is not comparable to large hosted models and may make mistakes, especially on complex coding tasks or long Arabic conversations.
 
 ## Run locally
-Requires Node.js 20.9+.
+
+Requires Node.js 20.9 or newer.
 
 ```bash
 npm install
-cp .env.example .env.local
-# Add GEMINI_API_KEY to .env.local
 npm run dev
 ```
-Open http://localhost:3000.
 
-## Environment variables
-- `GEMINI_API_KEY`: Google Gemini API key.
-- `GEMINI_MODEL`: optional model name; defaults to `gemini-2.5-flash`.
-- `AI_API_KEY`: optional key for an OpenAI-compatible API.
-- `AI_BASE_URL`: optional API base URL; defaults to OpenAI v1.
-- `AI_MODEL`: optional model name; defaults to `gpt-4o-mini`.
+Open http://localhost:3000, choose **تحميل نموذج الاختبار**, wait for the model to initialize, and then send a message.
 
-Never commit real keys or `.env.local`. Add secrets in your hosting provider's environment settings.
+## Deployment
 
-## Deploy
-Import the repository into Vercel, add the environment variables, and deploy. Git-connected deployments can rebuild after pushes to the production branch.
+Import this repository into Vercel, use the default Next.js settings, and deploy. No environment variables are required for the local model. The deployed site still relies on the visitor's browser and device to run inference.
 
 ## Roadmap
-1. Streaming output and saved conversations.
-2. Additional provider adapters and intelligent model routing.
-3. Secure coding workspace with isolated project execution.
-4. Image generation integration.
-5. Android app shell and account sync.
 
-**Status:** Early MVP. Autonomous coding, image generation, file workspace, and Android packaging are not implemented yet.
+1. Improve local model choices and device capability detection.
+2. Add conversation export and optional local persistence.
+3. Add a secure project workspace for coding tasks.
+4. Add image generation through an age-appropriate, policy-compliant provider.
+5. Build the Android app shell.
+
+## Model and runtime
+
+- Runtime: [WebLLM](https://github.com/mlc-ai/web-llm)
+- Model: `Qwen2.5-0.5B-Instruct-q4f16_1-MLC`
+- Inference is performed in the browser using WebGPU.
