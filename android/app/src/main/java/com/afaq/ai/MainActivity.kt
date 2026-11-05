@@ -272,7 +272,7 @@ class MainActivity : ComponentActivity() {
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text("AFAQ AI", color = foreground, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                            Text("سجل ومساحة العمل", color = muted, fontSize = 10.sp)
+                            Text("THINK BEYOND. BUILD BEYOND.", color = muted, fontSize = 8.sp, letterSpacing = 0.6.sp)
                         }
                         IconButton(onClick = { drawerOpen = false }) { Icon(Icons.Default.Close, null, tint = muted) }
                     }
@@ -367,7 +367,7 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
                         colors = NavigationDrawerItemDefaults.colors(unselectedIconColor = primary, unselectedTextColor = foreground)
                     )
-                    Text("آفاق AI · 0.2", color = muted.copy(alpha = .75f), fontSize = 9.sp, modifier = Modifier.align(Alignment.CenterHorizontally).padding(12.dp))
+                    Text("AFAQ AI · VERSION 0.4.0", color = muted.copy(alpha = .75f), fontSize = 9.sp, modifier = Modifier.align(Alignment.CenterHorizontally).padding(12.dp))
                 }
             },
             gesturesEnabled = true
@@ -380,8 +380,8 @@ class MainActivity : ComponentActivity() {
                     ) {
                         IconButton(onClick = { drawerOpen = true }) { Icon(Icons.Default.Menu, "القائمة", tint = foreground) }
                         Column(Modifier.weight(1f)) {
-                            Text("آفاق AI", color = foreground, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                            Text(if (selectedTab == "tools") "الأدوات والمساعدات" else currentChat?.title ?: "مساحة ذكاء اصطناعي", color = muted, fontSize = 9.sp, maxLines = 1)
+                            Text("AFAQ AI", color = foreground, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text(if (selectedTab == "tools") "الأدوات والمساعدات" else currentChat?.title ?: "THINK BEYOND. BUILD BEYOND.", color = muted, fontSize = 8.sp, maxLines = 1)
                         }
                         Surface(color = accent.copy(alpha = .12f), shape = CircleShape) {
                             Row(Modifier.padding(horizontal = 9.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
