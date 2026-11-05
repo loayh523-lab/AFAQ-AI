@@ -5,10 +5,10 @@ import {
   ArrowUp, Bot, Check, ChevronDown, Code2, Copy, Download, FileText, History,
   Lightbulb, Menu, MessageSquarePlus, MoreHorizontal, Pencil, Plus, Search,
   Settings2, ShieldCheck, Sparkles, Trash2, WandSparkles, X, BookOpen, Upload,
-  BrainCircuit, GraduationCap, BriefcaseBusiness, PanelRightClose
+  BrainCircuit, GraduationCap, BriefcaseBusiness, PanelRightClose, Paperclip, Globe2, ImagePlus
 } from 'lucide-react';
 
-type Message = { id: string; role: 'user' | 'assistant'; content: string; createdAt: number };
+type Message = { id: string; role: 'user' | 'assistant'; content: string; createdAt: number; files?: Array<{ name: string; type: string }>; citations?: Array<{ title: string; url: string }> };
 type ChatSession = { id: string; title: string; updatedAt: number; messages: Message[] };
 type Settings = { theme: 'blue' | 'green' | 'light'; responseStyle: 'concise' | 'balanced' | 'detailed'; enterToSend: boolean; fontSize: number };
 type Tab = 'chats' | 'tools';
@@ -55,6 +55,11 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [webSearch, setWebSearch] = useState(false);
+  const [generateImage, setGenerateImage] = useState(false);
+  const [generatedImages, setGeneratedImages] = useState<Record<string, string[]>>({});
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const historyImportRef = useRef<HTMLInputElement>(null);
