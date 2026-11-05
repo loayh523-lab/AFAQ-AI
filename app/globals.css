@@ -318,3 +318,12 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .message-text .katex{font-size:1.05em}
 .message.user .message-text{white-space:normal}
 .message.user .message-text p:last-child{margin-bottom:0}
+
+
+.generated-file-list{display:grid;gap:7px;margin-top:13px;max-width:580px}
+.generated-file-list>b{font-size:10px;color:var(--muted);font-weight:700}
+.generated-file-link{display:flex;align-items:center;gap:9px;padding:10px 12px;border-radius:11px;background:var(--panel-2);border:1px solid var(--line);text-decoration:none!important;color:var(--text)!important}
+.generated-file-link svg{color:var(--green);flex-shrink:0}
+.generated-file-link span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.generated-file-link small{color:var(--blue);font-size:10px;font-weight:700}
+.generated-file-link:hover{border-color:var(--line-strong);background:var(--panel)}
