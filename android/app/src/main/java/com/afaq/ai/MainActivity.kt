@@ -7,12 +7,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
-import android.database.Cursor
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.content.Intent
 import android.os.Bundle
-import android.os.Build
 import android.os.Build
 import android.provider.OpenableColumns
 import android.util.Base64
@@ -455,7 +453,7 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                     }
-                    notifyReply("AFAQ AI — رد جديد", answer.ifBlank { "اكتمل تنفيذ طلبك." })
+                    if (notificationsEnabled) notifyReply("AFAQ AI — رد جديد", answer.ifBlank { "اكتمل تنفيذ طلبك." })
                 } catch (exception: Exception) {
                     updateChat(chatId) { chat ->
                         chat.copy(messages = chat.messages.map {
