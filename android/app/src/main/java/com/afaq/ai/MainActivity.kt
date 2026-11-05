@@ -31,6 +31,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
@@ -256,7 +258,13 @@ class MainActivity : ComponentActivity() {
                     }
                 } catch (exception: Exception) {
                     updateChat(chatId) { chat -> chat.copy(messages = chat.messages.filterNot { it.id == assistantMessage.id }) }
-                    error = exception.message ?: "حدث خطأ أثناء الاتصال بآفاق."
+                    updateChat(chatId) { chat ->
+                        chat.copy(messages = chat.messages.map {
+                            if (it.id == assistantMessage.id) it.copy(text = "ما كدرت أوصل لخدمة آفاق حالياً. جرّب مرة ثانية بعد قليل.") else it
+                        })
+                    }
+                    error = "تعذّر الاتصال بالخدمة. تأكد من الإنترنت وحاول مجدداً."
+                    input = prompt
                 } finally {
                     busy = false
                 }
@@ -466,9 +474,13 @@ class MainActivity : ComponentActivity() {
                                     Column(Modifier.fillMaxWidth(), horizontalAlignment = if (isUser) Alignment.Start else Alignment.End) {
                                         Text(if (isUser) "أنت" else "آفاق AI", color = if (isUser) accent else primary, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
                                         Surface(
-                                            color = if (isUser) surface2 else surface,
-                                            shape = RoundedCornerShape(15.dp),
-                                            modifier = Modifier.fillMaxWidth(.94f)
+                                            color = if (isUser) primary.copy(alpha = .13f) else surface,
+                                            shape = RoundedCornerShape(
+                                                topStart = 18.dp, topEnd = 18.dp,
+                                                bottomEnd = if (isUser) 5.dp else 18.dp,
+                                                bottomStart = if (isUser) 18.dp else 5.dp
+                                            ),
+                                            modifier = Modifier.fillMaxWidth(if (isUser) .84f else .96f)
                                         ) {
                                             SelectionContainer {
                                                 Text(
@@ -487,7 +499,19 @@ class MainActivity : ComponentActivity() {
                     }
 
                     Column(Modifier.fillMaxWidth().background(background).padding(horizontal = 11.dp, vertical = 8.dp)) {
-                        if (error.isNotBlank()) Text(error, color = Danger, fontSize = 10.sp, modifier = Modifier.padding(start = 5.dp, bottom = 7.dp))
+                        if (error.isNotBlank()) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                                    .background(Danger.copy(alpha = .10f), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 11.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(error, color = Danger, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                                TextButton(onClick = { error = ""; submit() }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
+                                    Text("إعادة المحاولة", color = primary, fontSize = 10.sp)
+                                }
+                            }
+                        }
                         Row(
                             Modifier.fillMaxWidth().background(surface, RoundedCornerShape(16.dp)).border(1.dp, primary.copy(alpha = .33f), RoundedCornerShape(16.dp)).padding(start = 12.dp, end = 7.dp, top = 7.dp, bottom = 7.dp),
                             verticalAlignment = Alignment.Bottom
@@ -495,8 +519,10 @@ class MainActivity : ComponentActivity() {
                             BasicTextField(
                                 value = input,
                                 onValueChange = { input = it },
-                                modifier = Modifier.weight(1f).padding(horizontal = 5.dp, vertical = 10.dp),
-                                textStyle = androidx.compose.ui.text.TextStyle(color = foreground, fontSize = 14.sp, textDirection = TextDirection.ContentOrRtl),
+                                modifier = Modifier.weight(1f).padding(horizontal = 7.dp, vertical = 9.dp),
+                                minLines = 1,
+                                maxLines = 5,
+                                textStyle = androidx.compose.ui.text.TextStyle(color = foreground, fontSize = 15.sp, lineHeight = 22.sp, textDirection = TextDirection.ContentOrRtl),
                                 cursorBrush = androidx.compose.ui.graphics.SolidColor(primary),
                                 decorationBox = { inner ->
                                     Box {
@@ -504,7 +530,12 @@ class MainActivity : ComponentActivity() {
                                         inner()
                                     }
                                 },
-                                keyboardOptions = KeyboardOptions(imeAction = if (enterToSend) ImeAction.Send else ImeAction.Default),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Text,
+                                    capitalization = KeyboardCapitalization.Sentences,
+                                    autoCorrectEnabled = true,
+                                    imeAction = if (enterToSend) ImeAction.Send else ImeAction.Default
+                                ),
                                 keyboardActions = KeyboardActions(onSend = { submit() })
                             )
                             IconButton(
