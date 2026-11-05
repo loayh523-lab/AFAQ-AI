@@ -129,7 +129,7 @@ class MainActivity : ComponentActivity() {
     private suspend fun sendPrompt(prompt: String, onChunk: (String) -> Unit) {
         val active = conversation ?: error("النموذج غير جاهز.")
         active.sendMessageAsync(prompt).catch { throw it }.collect { message ->
-            onChunk(message.text)
+            onChunk(message.toString())
         }
     }
 
@@ -205,8 +205,7 @@ class MainActivity : ComponentActivity() {
                         Spacer(Modifier.height(25.dp))
                         Text("مرحباً بك في آفاق", color = TextMain, fontSize = 25.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(9.dp))
-                        Text("ذكاء اصطناعي يعمل على جهازك،
-ومحادثاتك تبقى خاصة.", color = TextMuted, fontSize = 13.sp, lineHeight = 22.sp, textAlign = TextAlign.Center)
+                        Text("ذكاء اصطناعي يعمل على جهازك،\nومحادثاتك تبقى خاصة.", color = TextMuted, fontSize = 13.sp, lineHeight = 22.sp, textAlign = TextAlign.Center)
                         Spacer(Modifier.height(26.dp))
                         Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(17.dp)) {
