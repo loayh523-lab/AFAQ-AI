@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -266,9 +268,7 @@ class MainActivity : ComponentActivity() {
             drawerContent = {
                 ModalDrawerSheet(drawerContainerColor = surface, drawerContentColor = foreground) {
                     Row(Modifier.fillMaxWidth().padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(38.dp).background(Brush.linearGradient(listOf(primary, Color(0xFF173E83))), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.AutoAwesome, null, tint = Color.White)
-                        }
+                        Image(painter = painterResource(R.drawable.afaq_launcher_foreground), contentDescription = "AFAQ AI", modifier = Modifier.size(42.dp))
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text("AFAQ AI", color = foreground, fontWeight = FontWeight.Bold, fontSize = 17.sp)
