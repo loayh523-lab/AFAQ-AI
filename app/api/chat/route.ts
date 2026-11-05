@@ -5,23 +5,29 @@ export const maxDuration = 30;
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
+const RESPONSE_GUIDANCE: Record<string, string> = {
+  concise: "قدّم إجابة مختصرة ومباشرة مع الاحتفاظ بالمعلومة الضرورية.",
+  balanced: "قدّم إجابة متوازنة ومنظمة مع أمثلة عند الحاجة.",
+  detailed: "قدّم شرحاً مفصلاً ومنظماً وخطوات واضحة وأمثلة عند الحاجة.",
+};
+
 export async function POST(request: NextRequest) {
   const gatewayToken = process.env.VERCEL_OIDC_TOKEN;
   const endpoint = "https://ai-gateway.vercel.sh/v1/chat/completions";
-  const model = process.env.AFAQ_MODEL || "zai/glm-4.6v-flash";
+  const model = process.env.AFAQ_MODEL || "nvidia/nemotron-3.5-lightning-free";
 
   if (!gatewayToken) {
     return NextResponse.json(
-      { error: "خدمة آفاق لم تُفعّل بعد. يرجى المحاولة لاحقاً." },
+      { error: "خدمة آفاق لم تُفعّل على الخادم بعد. حاول لاحقاً." },
       { status: 503 },
     );
   }
 
-  let payload: { messages?: unknown };
+  let payload: { messages?: unknown; preferences?: { responseStyle?: unknown } };
   try {
     const raw = await request.text();
     if (raw.length > 48_000) {
-      return NextResponse.json({ error: "الرسالة طويلة جداً." }, { status: 413 });
+      return NextResponse.json({ error: "الطلب طويل جداً." }, { status: 413 });
     }
     payload = JSON.parse(raw);
   } catch {
@@ -45,6 +51,15 @@ export async function POST(request: NextRequest) {
     messages.push({ role, content });
   }
 
+  if (messages[messages.length - 1]?.role !== "user") {
+    return NextResponse.json({ error: "يجب أن تنتهي المحادثة برسالة من المستخدم." }, { status: 400 });
+  }
+
+  const style = payload.preferences?.responseStyle;
+  const styleInstruction = typeof style === "string" && style in RESPONSE_GUIDANCE
+    ? RESPONSE_GUIDANCE[style]
+    : RESPONSE_GUIDANCE.balanced;
+
   try {
     const upstream = await fetch(endpoint, {
       method: "POST",
@@ -57,7 +72,7 @@ export async function POST(request: NextRequest) {
         messages: [
           {
             role: "system",
-            content: "أنت آفاق، مساعد عربي ذكي ودقيق. أجب بلغة المستخدم. كن واضحاً، ولا تختلق الحقائق. عند كتابة البرامج قدّم حلولاً عملية واختبر الافتراضات.",
+            content: `أنت آفاق، مساعد عربي ذكي ودقيق. أجب بلغة المستخدم. كن واضحاً ولا تختلق الحقائق. عند كتابة البرامج قدّم حلولاً عملية قابلة للاختبار. ${styleInstruction}`,
           },
           ...messages,
         ],
@@ -70,9 +85,9 @@ export async function POST(request: NextRequest) {
 
     const data = await upstream.json().catch(() => null);
     if (!upstream.ok) {
-      console.error("AI provider request failed", upstream.status);
+      console.error("AI Gateway request failed", upstream.status, data?.error?.code ?? "provider_error");
       return NextResponse.json(
-        { error: upstream.status === 429 ? "آفاق مشغول حالياً. حاول بعد قليل." : "تعذّر الوصول إلى خدمة الذكاء الاصطناعي حالياً." },
+        { error: upstream.status === 429 ? "آفاق مشغول حالياً. حاول بعد قليل." : upstream.status === 402 ? "خدمة الذكاء الاصطناعي غير متاحة حالياً على الخادم." : "تعذّر الوصول إلى خدمة الذكاء الاصطناعي حالياً." },
         { status: upstream.status === 429 ? 429 : 502 },
       );
     }
@@ -83,7 +98,7 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ answer });
   } catch (error) {
-    console.error("AI provider connection error", error instanceof Error ? error.message : "unknown");
+    console.error("AI Gateway connection error", error instanceof Error ? error.message : "unknown");
     return NextResponse.json({ error: "تعذّر الاتصال بآفاق. تحقق من الإنترنت وحاول مجدداً." }, { status: 502 });
   }
 }
