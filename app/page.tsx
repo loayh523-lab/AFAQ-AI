@@ -12,7 +12,7 @@ import {
   BrainCircuit, GraduationCap, BriefcaseBusiness, PanelRightClose, Paperclip, Globe2, ImagePlus
 } from 'lucide-react';
 
-type Message = { id: string; role: 'user' | 'assistant'; content: string; createdAt: number; files?: Array<{ name: string; type: string }>; citations?: Array<{ title: string; url: string }> };
+type Message = { id: string; role: 'user' | 'assistant'; content: string; createdAt: number; files?: Array<{ name: string; type: string }>; citations?: Array<{ title: string; url: string }>; generatedFiles?: Array<{ name: string; url: string; expiresAt?: number }> };
 type ChatSession = { id: string; title: string; updatedAt: number; messages: Message[] };
 type Settings = { theme: 'blue' | 'green' | 'light'; responseStyle: 'concise' | 'balanced' | 'detailed'; enterToSend: boolean; fontSize: number };
 type Tab = 'chats' | 'tools';
@@ -316,6 +316,7 @@ export default function Home() {
               ...message,
               content: message.content || 'تم تنفيذ الطلب.',
               citations: Array.isArray(event.citations) ? event.citations : [],
+              generatedFiles: Array.isArray(event.files) ? event.files : [],
             } : message),
           }));
         }
@@ -526,6 +527,12 @@ export default function Home() {
                     {message.files?.length ? <div className="message-attachments">{message.files.map((file, index) => <span key={index}><FileText size={13} /> {file.name}</span>)}</div> : null}
                     {generatedImages[message.id]?.map((image, index) => <img key={index} className="generated-image" src={image} alt="صورة أنشأها آفاق" />)}
                     {message.citations?.length ? <div className="message-citations"><b>المصادر</b>{message.citations.map((citation, index) => <a key={index} href={citation.url} target="_blank" rel="noreferrer">{citation.title}</a>)}</div> : null}
+                    {message.generatedFiles?.length ? <div className="generated-file-list">
+                      <b>الملفات الجاهزة للتنزيل</b>
+                      {message.generatedFiles.map((file, index) => <a key={index} href={file.url} className="generated-file-link">
+                        <Download size={15} /><span>{file.name}</span><small>تنزيل</small>
+                      </a>)}
+                    </div> : null}
                     <div className="message-tools">
                       {message.role === 'assistant' && message.content && <button onClick={() => copyText(message.id, message.content)}><Copy size={13} /> {copiedId === message.id ? 'تم النسخ' : 'نسخ الإجابة'}</button>}
                       {message.role === 'user' && <button onClick={() => editMessage(activeChat, message)}><Pencil size={13} /> تعديل الطلب</button>}
