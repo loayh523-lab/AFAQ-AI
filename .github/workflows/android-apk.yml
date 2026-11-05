@@ -2,6 +2,14 @@ name: Build AFAQ Android APK
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'settings.gradle.kts'
+      - 'build.gradle.kts'
+      - 'gradle.properties'
+      - '.github/workflows/android-apk.yml'
   push:
     branches: [main]
     paths:
