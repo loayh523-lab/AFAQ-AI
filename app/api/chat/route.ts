@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   let payload: { messages?: unknown; preferences?: { responseStyle?: unknown } };
   try {
     const raw = await request.text();
-    if (raw.length > 48_000) {
+    if (raw.length > 128_000) {
       return NextResponse.json({ error: "الطلب طويل جداً." }, { status: 413 });
     }
     payload = JSON.parse(raw);
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "تعذّر قراءة الطلب." }, { status: 400 });
   }
 
-  if (!Array.isArray(payload.messages) || payload.messages.length === 0 || payload.messages.length > 24) {
+  if (!Array.isArray(payload.messages) || payload.messages.length === 0 || payload.messages.length > 20) {
     return NextResponse.json({ error: "سجل المحادثة غير صالح." }, { status: 400 });
   }
 
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
     const role = (item as { role?: unknown }).role;
     const content = (item as { content?: unknown }).content;
-    if ((role !== "user" && role !== "assistant") || typeof content !== "string" || !content.trim() || content.length > 12_000) {
+    if ((role !== "user" && role !== "assistant") || typeof content !== "string" || !content.trim() || content.length > 10_000) {
       return NextResponse.json({ error: "محتوى الرسالة غير صالح." }, { status: 400 });
     }
     messages.push({ role, content });
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
           ...messages,
         ],
         temperature: 0.65,
-        max_tokens: 1800,
+        max_tokens: 3000,
       }),
       signal: AbortSignal.timeout(25_000),
       cache: "no-store",
