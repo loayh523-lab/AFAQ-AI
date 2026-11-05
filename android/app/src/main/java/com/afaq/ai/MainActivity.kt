@@ -146,7 +146,7 @@ private fun postChat(messages: List<AfaqMessage>, responseStyle: String): String
         val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
         val response = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
         if (code !in 200..299) {
-            throw IllegalStateException(response.optString("error").ifBlank { "تعذّر الاتصال بآفاق (HTTP $code)." })
+            throw IllegalStateException(response.optString("error").ifBlank { if (code == 401 || code == 403) "خادم آفاق محمي حالياً. يجب إتاحة عنوان الخدمة أولاً." else "تعذّر الاتصال بآفاق (HTTP $code)." })
         }
         response.optString("answer").takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("لم تصل إجابة صالحة من آفاق.")
