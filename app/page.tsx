@@ -86,12 +86,20 @@ export default function Home() {
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem(CHAT_KEY, JSON.stringify(history));
+    try {
+      localStorage.setItem(CHAT_KEY, JSON.stringify(history));
+    } catch {
+      setError('مساحة تخزين المتصفح ممتلئة. صدّر سجل محادثاتك ثم احذف المحادثات القديمة.');
+    }
   }, [history, hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    } catch {
+      setError('تعذّر حفظ الإعدادات في المتصفح.');
+    }
     document.documentElement.dataset.theme = settings.theme;
   }, [settings, hydrated]);
 
@@ -145,12 +153,12 @@ export default function Home() {
 
   async function importHistory(file?: File) {
     if (!file) return;
-    if (file.size > 5_000_000) { setError('ملف السجل أكبر من الحد المسموح (5 MB).'); return; }
+    if (file.size > 15_000_000) { setError('ملف السجل أكبر من الحد المسموح (5 MB).'); return; }
     try {
       const parsed = JSON.parse(await file.text()) as { conversations?: unknown };
       if (!Array.isArray(parsed.conversations)) throw new Error('صيغة ملف السجل غير صحيحة.');
       const restored: ChatSession[] = [];
-      for (const item of parsed.conversations) {
+      for (const item of parsed.conversations.slice(0, 500)) {
         if (!item || typeof item !== 'object') continue;
         const chat = item as Partial<ChatSession>;
         if (typeof chat.id !== 'string' || typeof chat.title !== 'string' || !Array.isArray(chat.messages)) continue;
