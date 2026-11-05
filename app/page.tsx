@@ -409,7 +409,7 @@ export default function Home() {
             <div className="welcome">
               <div className="welcome-orb"><div className="orb-core"><img src="/afaq-mark.svg" alt="" /></div><span className="orb-ring ring-one" /><span className="orb-ring ring-two" /></div>
               <div className="eyebrow"><span /> THINK BEYOND. BUILD BEYOND.</div>
-              <h1>أهلاً بك في <em>آفاق</em></h1>
+              <h1>أهلاً بك في <em>AFAQ AI</em></h1>
               <p className="welcome-copy">فكّر، تعلّم، اكتب الكود، وحوّل أفكارك إلى مشاريع.<br />ابدأ محادثة جديدة، وسنتولى نحن التفاصيل التقنية.</p>
               <div className="quick-tools">
                 <button onClick={() => chooseTool(tools[0].prompt)}><Code2 size={17} /> برمجة</button>
