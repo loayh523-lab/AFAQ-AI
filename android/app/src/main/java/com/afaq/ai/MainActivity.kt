@@ -381,12 +381,20 @@ class MainActivity : ComponentActivity() {
         }
 
         fun submit() {
-            val prompt = input.trim()
+            val prompt = input.trim().ifBlank { if (attachments.isNotEmpty()) "حلّل الملفات المرفقة واشرح محتواها." else "" }
             if (prompt.isEmpty() || busy) return
+            if (attachments.size > 6 || attachments.sumOf { it.data.length } > 28_000_000) {
+                error = "الحد المسموح ستة ملفات وبحجم إجمالي 20 MB."
+                return
+            }
+            val selectedAttachments = attachments
             val now = System.currentTimeMillis()
             val chatId = activeChatId ?: UUID.randomUUID().toString()
             val existing = chats.firstOrNull { it.id == chatId }
-            val userMessage = AfaqMessage(UUID.randomUUID().toString(), "user", prompt, now)
+            val userMessage = AfaqMessage(
+                UUID.randomUUID().toString(), "user", prompt, now,
+                files = selectedAttachments.map { it.name }
+            )
             val assistantMessage = AfaqMessage(UUID.randomUUID().toString(), "assistant", "", now + 1)
             val pending = if (existing == null) {
                 AfaqChat(chatId, chatTitle(prompt), now, listOf(userMessage, assistantMessage))
@@ -397,26 +405,68 @@ class MainActivity : ComponentActivity() {
             activeChatId = chatId
             selectedTab = "chats"
             input = ""
+            attachments = emptyList()
             error = ""
             busy = true
             scope.launch {
                 try {
-                    val answer = withContext(Dispatchers.IO) { postChat(pending.messages, responseStyle) }
+                    val answer = withContext(Dispatchers.IO) {
+                        postChat(pending.messages, responseStyle, selectedAttachments, webSearch, generateImage) { event ->
+                            scope.launch {
+                                when (event.optString("type")) {
+                                    "delta" -> {
+                                        val delta = event.optString("text")
+                                        updateChat(chatId) { chat ->
+                                            chat.copy(messages = chat.messages.map {
+                                                if (it.id == assistantMessage.id) it.copy(text = it.text + delta) else it
+                                            })
+                                        }
+                                    }
+                                    "image" -> {
+                                        val data = event.optString("data")
+                                        if (data.isNotBlank()) {
+                                            val uri = "data:" + event.optString("mimeType", "image/png") + ";base64," + data
+                                            generatedImages = generatedImages + (assistantMessage.id to ((generatedImages[assistantMessage.id] ?: emptyList()) + uri))
+                                        }
+                                    }
+                                    "done" -> {
+                                        val list = event.optJSONArray("citations") ?: JSONArray()
+                                        val sources = buildList {
+                                            for (index in 0 until list.length()) {
+                                                val citation = list.optJSONObject(index) ?: continue
+                                                add(AfaqCitation(citation.optString("title"), citation.optString("url")))
+                                            }
+                                        }
+                                        updateChat(chatId) { chat ->
+                                            chat.copy(messages = chat.messages.map {
+                                                if (it.id == assistantMessage.id) it.copy(citations = sources) else it
+                                            })
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     updateChat(chatId) { chat ->
                         chat.copy(
                             updatedAt = System.currentTimeMillis(),
-                            messages = chat.messages.map { if (it.id == assistantMessage.id) it.copy(text = answer) else it }
+                            messages = chat.messages.map {
+                                if (it.id == assistantMessage.id && it.text.isBlank()) it.copy(text = answer.ifBlank { "تم تنفيذ الطلب." }) else it
+                            }
                         )
                     }
+                    notifyReply("AFAQ AI — رد جديد", answer.ifBlank { "اكتمل تنفيذ طلبك." })
                 } catch (exception: Exception) {
-                    updateChat(chatId) { chat -> chat.copy(messages = chat.messages.filterNot { it.id == assistantMessage.id }) }
                     updateChat(chatId) { chat ->
                         chat.copy(messages = chat.messages.map {
-                            if (it.id == assistantMessage.id) it.copy(text = "ما كدرت أوصل لخدمة آفاق حالياً. جرّب مرة ثانية بعد قليل.") else it
+                            if (it.id == assistantMessage.id) it.copy(
+                                text = it.text.ifBlank { "ما كدرت أكمل الطلب بسبب مشكلة بالاتصال." }
+                            ) else it
                         })
                     }
-                    error = "تعذّر الاتصال بالخدمة. تأكد من الإنترنت وحاول مجدداً."
+                    error = exception.message ?: "تعذّر الاتصال بخدمة آفاق. تأكد من الإنترنت وحاول مجدداً."
                     input = prompt
+                    attachments = selectedAttachments
                 } finally {
                     busy = false
                 }
