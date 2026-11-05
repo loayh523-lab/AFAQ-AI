@@ -399,6 +399,7 @@ export default function Home() {
               ...message,
               content: message.content || 'تم تنفيذ الطلب.',
               citations: Array.isArray(event.citations) ? event.citations : [],
+              generatedFiles: Array.isArray(event.files) ? event.files : [],
             } : message),
           }));
         }
