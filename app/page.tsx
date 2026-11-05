@@ -167,7 +167,7 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: pending.messages.filter(message => message.content.trim()).map(({ role, content }) => ({ role, content })),
+          messages: pending.messages.filter(message => message.content.trim()).slice(-20).map(({ role, content }) => ({ role, content })),
           preferences: { responseStyle: settings.responseStyle },
         }),
       });
