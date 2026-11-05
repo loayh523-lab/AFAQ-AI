@@ -163,7 +163,6 @@ class MainActivity : ComponentActivity() {
         var settingsOpen by remember { mutableStateOf(false) }
         var input by remember { mutableStateOf("") }
         var messages by remember { mutableStateOf(listOf<ChatMessage>()) }
-        var messageId by remember { mutableLongStateOf(0L) }
 
         MaterialTheme(colorScheme = darkColorScheme(
             primary = Gold, secondary = Mint, background = Ink, surface = Panel,
@@ -292,7 +291,7 @@ class MainActivity : ComponentActivity() {
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                             keyboardActions = KeyboardActions(onSend = { submit(input, { input = "" }, { error = it }, { messages = messages + it }, { id, text -> messages = messages.map { item -> if (item.id == id) item.copy(text = text) else item } }, scope, onSend, { busy = it }) })
                         )
-                        IconButton(onClick = { submit(input, { input = "" }, { error = it }, { messages = messages + it }, { messageId++ }, scope, onSend, { busy = it }) }, enabled = input.isNotBlank() && !busy, modifier = Modifier.size(42.dp).background(Gold, CircleShape)) {
+                        IconButton(onClick = { submit(input, { input = "" }, { error = it }, { messages = messages + it }, { id, text -> messages = messages.map { item -> if (item.id == id) item.copy(text = text) else item } }, scope, onSend, { busy = it }) }, enabled = input.isNotBlank() && !busy, modifier = Modifier.size(42.dp).background(Gold, CircleShape)) {
                             Icon(Icons.Default.ArrowUpward, null, tint = Ink)
                         }
                     }
