@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -208,6 +210,8 @@ class MainActivity : ComponentActivity() {
         val muted = if (isLight) Color(0xFF65758E) else TextMuted
         val currentChat = chats.firstOrNull { it.id == activeChatId }
         val filteredChats = chats.filter { it.title.contains(search, ignoreCase = true) }
+        val drawerState = rememberDrawerState(DrawerValue.Closed)
+        LaunchedEffect(drawerOpen) { if (drawerOpen) drawerState.open() else drawerState.close() }
 
         fun updateChat(id: String, transform: (AfaqChat) -> AfaqChat) {
             chats = chats.map { if (it.id == id) transform(it) else it }.sortedByDescending { it.updatedAt }
@@ -259,7 +263,7 @@ class MainActivity : ComponentActivity() {
         }
 
         ModalNavigationDrawer(
-            drawerState = rememberDrawerState(if (drawerOpen) DrawerValue.Open else DrawerValue.Closed),
+            drawerState = drawerState,
             drawerContent = {
                 ModalDrawerSheet(drawerContainerColor = surface, drawerContentColor = foreground) {
                     Row(Modifier.fillMaxWidth().padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -373,17 +377,17 @@ class MainActivity : ComponentActivity() {
 
                     when {
                         selectedTab == "tools" -> {
+                            val templates = listOf(
+                                Triple(Icons.Default.Code, "مساعد البرمجة", "اكتب لي كوداً قابلاً للتشغيل وساعدني على تصحيح الأخطاء."),
+                                Triple(Icons.Default.School, "التعلّم والدراسة", "اشرح لي هذا الموضوع من الأساس مع أمثلة ثم اختبر فهمي."),
+                                Triple(Icons.Default.Description, "الكتابة والتحرير", "ساعدني في صياغة النص التالي بلغة واضحة ومنظمة:"),
+                                Triple(Icons.Default.Lightbulb, "تطوير الأفكار", "حوّل فكرتي إلى مشروع عملي بخطوات ومتطلبات واضحة:")
+                            )
                             LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
                                 item {
                                     Text("اختر مساعدك", color = foreground, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                                     Text("ابدأ من قالب جاهز ثم عدّل طلبك قبل الإرسال.", color = muted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp, bottom = 8.dp))
                                 }
-                                val templates = listOf(
-                                    Triple(Icons.Default.Code, "مساعد البرمجة", "اكتب لي كوداً قابلاً للتشغيل وساعدني على تصحيح الأخطاء."),
-                                    Triple(Icons.Default.School, "التعلّم والدراسة", "اشرح لي هذا الموضوع من الأساس مع أمثلة ثم اختبر فهمي."),
-                                    Triple(Icons.Default.Description, "الكتابة والتحرير", "ساعدني في صياغة النص التالي بلغة واضحة ومنظمة:"),
-                                    Triple(Icons.Default.Lightbulb, "تطوير الأفكار", "حوّل فكرتي إلى مشروع عملي بخطوات ومتطلبات واضحة:")
-                                )
                                 items(templates) { item ->
                                     Card(
                                         modifier = Modifier.fillMaxWidth().clickable {
@@ -420,7 +424,7 @@ class MainActivity : ComponentActivity() {
                                 Spacer(Modifier.height(22.dp))
                                 val ideas = listOf("مساعد البرمجة" to "ساعدني في بناء تطبيق خطوة بخطوة.", "الشرح والتعلّم" to "اشرح لي مفهوماً صعباً بطريقة سهلة.", "تطوير الأفكار" to "ساعدني في تحويل فكرة إلى مشروع.")
                                 ideas.forEach { (title, prompt) ->
-                                    OutlinedButton(onClick = { input = prompt }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = foreground), border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.linearGradient(listOf(primary.copy(alpha = .5f), accent.copy(alpha = .4f))))) {
+                                    OutlinedButton(onClick = { input = prompt }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = foreground), border = BorderStroke(1.dp, primary.copy(alpha = .4f))) {
                                         Icon(Icons.Default.AutoAwesome, null, tint = primary, modifier = Modifier.size(16.dp))
                                         Spacer(Modifier.width(8.dp))
                                         Text(title, fontSize = 11.sp)
