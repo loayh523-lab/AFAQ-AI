@@ -1,10 +1,23 @@
 package com.afaq.ai
 
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.PackageManager
+import android.database.Cursor
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.content.Intent
 import android.os.Bundle
+import android.os.Build
+import android.provider.OpenableColumns
+import android.util.Base64
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -27,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -58,11 +72,16 @@ private val Danger = Color(0xFFEF737B)
 private const val PREFS_NAME = "afaq_preferences"
 private const val HISTORY_KEY = "chat_history_v2"
 
+data class AfaqCitation(val title: String, val url: String)
+data class AfaqAttachment(val name: String, val type: String, val data: String)
+
 data class AfaqMessage(
     val id: String,
     val role: String,
     val text: String,
-    val timestamp: Long
+    val timestamp: Long,
+    val files: List<String> = emptyList(),
+    val citations: List<AfaqCitation> = emptyList()
 )
 
 data class AfaqChat(
@@ -87,7 +106,16 @@ private fun loadChats(context: Context): List<AfaqChat> {
                             id = message.optString("id", UUID.randomUUID().toString()),
                             role = message.optString("role", "assistant"),
                             text = message.optString("text", ""),
-                            timestamp = message.optLong("timestamp", System.currentTimeMillis())
+                            timestamp = message.optLong("timestamp", System.currentTimeMillis()),
+                            files = message.optJSONArray("files")?.let { array ->
+                                buildList { for (index in 0 until array.length()) add(array.optString(index)) }
+                            } ?: emptyList(),
+                            citations = message.optJSONArray("citations")?.let { array ->
+                                buildList { for (index in 0 until array.length()) {
+                                    val citation = array.optJSONObject(index) ?: continue
+                                    add(AfaqCitation(citation.optString("title"), citation.optString("url")))
+                                } }
+                            } ?: emptyList()
                         ))
                     }
                 }
@@ -113,7 +141,13 @@ private fun saveChats(context: Context, chats: List<AfaqChat>) {
                 .put("id", message.id)
                 .put("role", message.role)
                 .put("text", message.text)
-                .put("timestamp", message.timestamp))
+                .put("timestamp", message.timestamp)
+                .put("files", JSONArray(message.files))
+                .put("citations", JSONArray().apply {
+                    message.citations.forEach { citation ->
+                        put(JSONObject().put("title", citation.title).put("url", citation.url))
+                    }
+                }))
         }
         array.put(JSONObject()
             .put("id", chat.id)
@@ -125,35 +159,91 @@ private fun saveChats(context: Context, chats: List<AfaqChat>) {
         .edit().putString(HISTORY_KEY, array.toString()).apply()
 }
 
-private fun postChat(messages: List<AfaqMessage>, responseStyle: String): String {
+private fun readAttachment(context: Context, uri: Uri): AfaqAttachment {
+    val resolver = context.contentResolver
+    val mime = (resolver.getType(uri) ?: "application/octet-stream").lowercase()
+    val allowed = setOf(
+        "image/jpeg", "image/png", "image/webp", "image/gif",
+        "application/pdf", "text/plain", "text/markdown", "application/json", "text/csv",
+        "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
+    require(allowed.contains(mime)) { "نوع الملف غير مدعوم حالياً." }
+    val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) cursor.getString(0) else null
+    } ?: "attachment"
+    val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("تعذّر قراءة الملف.")
+    require(bytes.size <= 10_000_000) { "حجم الملف أكبر من 10 MB." }
+    val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
+    return AfaqAttachment(name, mime, "data:$mime;base64,$encoded")
+}
+
+private fun postChat(
+    messages: List<AfaqMessage>,
+    responseStyle: String,
+    attachments: List<AfaqAttachment>,
+    webSearch: Boolean,
+    generateImage: Boolean,
+    onEvent: (JSONObject) -> Unit
+): String {
     val endpoint = BuildConfig.AFAQ_API_BASE_URL.trimEnd('/') + "/api/chat"
     val payloadMessages = JSONArray()
-    messages.takeLast(20).filter { it.text.isNotBlank() && (it.role == "user" || it.role == "assistant") }.forEach {
+    messages.takeLast(24).filter { it.text.isNotBlank() && (it.role == "user" || it.role == "assistant") }.forEach {
         payloadMessages.put(JSONObject().put("role", it.role).put("content", it.text))
+    }
+    val payloadAttachments = JSONArray()
+    attachments.forEach {
+        payloadAttachments.put(JSONObject().put("name", it.name).put("type", it.type).put("data", it.data))
     }
     val payload = JSONObject()
         .put("messages", payloadMessages)
-        .put("preferences", JSONObject().put("responseStyle", responseStyle))
+        .put("attachments", payloadAttachments)
+        .put("preferences", JSONObject()
+            .put("responseStyle", responseStyle)
+            .put("webSearch", webSearch)
+            .put("generateImage", generateImage))
 
     val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
         requestMethod = "POST"
-        connectTimeout = 15_000
-        readTimeout = 35_000
+        connectTimeout = 20_000
+        readTimeout = 65_000
         doOutput = true
         setRequestProperty("Content-Type", "application/json; charset=utf-8")
-        setRequestProperty("Accept", "application/json")
+        setRequestProperty("Accept", "text/event-stream")
     }
     return try {
         connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
         val code = connection.responseCode
-        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-        val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-        val response = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
         if (code !in 200..299) {
-            throw IllegalStateException(response.optString("error").ifBlank { if (code == 401 || code == 403) "خادم آفاق محمي حالياً. يجب إتاحة عنوان الخدمة أولاً." else "تعذّر الاتصال بآفاق (HTTP $code)." })
+            val responseText = connection.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            val response = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
+            val message = response.optString("error").ifBlank {
+                when (code) {
+                    401, 403 -> "خدمة آفاق محمية أو لم يتم تفعيل الوصول إليها بعد."
+                    404 -> "عنوان خدمة آفاق غير صحيح أو أن النشر غير متاح حالياً."
+                    429 -> "وصلنا إلى حد الطلبات مؤقتاً. أعد المحاولة بعد قليل."
+                    else -> "تعذّر الاتصال بآفاق (HTTP $code)."
+                }
+            }
+            throw IllegalStateException(message)
         }
-        response.optString("answer").takeIf { it.isNotBlank() }
-            ?: throw IllegalStateException("لم تصل إجابة صالحة من آفاق.")
+
+        val answer = StringBuilder()
+        connection.inputStream.bufferedReader(Charsets.UTF_8).useLines { lines ->
+            lines.forEach { line ->
+                if (!line.startsWith("data:")) return@forEach
+                val raw = line.substringAfter("data:").trim()
+                if (raw.isEmpty() || raw == "[DONE]") return@forEach
+                val event = try { JSONObject(raw) } catch (_: Exception) { return@forEach }
+                when (event.optString("type")) {
+                    "delta" -> answer.append(event.optString("text"))
+                    "error" -> throw IllegalStateException(event.optString("message").ifBlank { "انقطع الاتصال أثناء إنشاء الإجابة." })
+                }
+                onEvent(event)
+            }
+        }
+        answer.toString()
     } finally {
         connection.disconnect()
     }
