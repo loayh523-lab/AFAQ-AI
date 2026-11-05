@@ -246,3 +246,49 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .orb-core img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
 .model-select{font:700 9px var(--font-en);letter-spacing:.7px;color:var(--green)}
 .profile-status{font:700 8px var(--font-en);letter-spacing:.8px;color:var(--green)}
+
+
+/* AFAQ responsive multimodal composer and source cards */
+.message{gap:12px;margin-bottom:26px}
+.message.user{flex-direction:row-reverse}
+.message.user .message-body{text-align:right}
+.message.user .message-heading{justify-content:flex-start;flex-direction:row-reverse}
+.message.user .message-text{display:inline-block;max-width:88%;padding:12px 15px;border:1px solid color-mix(in srgb,var(--green) 18%,var(--line));border-radius:17px 17px 5px 17px;background:color-mix(in srgb,var(--green) 7%,var(--panel-2))}
+.message.assistant .message-text{line-height:2.0}
+.message-attachments{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.message-attachments span,.attachment-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel-2);padding:7px 9px;border-radius:9px;color:var(--muted);font-size:10px}
+.generated-image{display:block;width:min(100%,620px);max-height:560px;object-fit:contain;border:1px solid var(--line);border-radius:14px;margin-top:14px;background:var(--panel-2)}
+.message-citations{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:13px;padding-top:10px;border-top:1px solid var(--line);font-size:10px}
+.message-citations b{color:var(--muted);margin-left:3px}
+.message-citations a{color:var(--blue);text-decoration:none;border:1px solid var(--line);background:var(--panel-2);border-radius:8px;padding:6px 9px}
+.message-citations a:hover{text-decoration:underline}
+.composer{padding:13px 14px 11px;border-radius:20px}
+.composer textarea{min-height:48px;max-height:170px;resize:none;font-size:15px;line-height:1.9;padding:8px 5px}
+.composer-tools{gap:12px;align-items:center;flex-wrap:wrap}
+.composer-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.composer-action{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:35px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2);color:var(--muted);font-size:10px;transition:.18s}
+.composer-action:hover{color:var(--text);border-color:var(--line-strong)}
+.composer-action.active{background:var(--blue-soft);border-color:color-mix(in srgb,var(--blue) 45%,var(--line));color:var(--blue)}
+.composer-submit{display:flex;align-items:center;gap:10px;margin-right:auto}
+.composer-submit .send-btn{width:43px;height:43px;border-radius:14px}
+.attachment-preview{display:flex;gap:7px;flex-wrap:wrap;padding:1px 0 9px}
+.attachment-chip{max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.attachment-chip button{display:grid;place-items:center;border:0;background:transparent;color:var(--muted-2);padding:1px}
+.composer textarea:disabled{opacity:.7}
+@media(max-width:760px){
+ .composer-area{width:calc(100% - 22px);padding-bottom:max(12px,env(safe-area-inset-bottom))}
+ .composer{padding:11px 11px 10px;border-radius:19px}
+ .composer textarea{font-size:15px;min-height:46px}
+ .composer-tools{align-items:flex-end}
+ .composer-actions{gap:5px}
+ .composer-action{min-height:34px;padding:0 9px;font-size:10px}
+ .composer-action span{display:inline}
+ .composer-submit{gap:6px}
+ .composer-submit .send-btn{width:42px;height:42px}
+ .composer-hints{display:none}
+ .message.user .message-text{max-width:96%}
+}
+@media(max-width:390px){
+ .composer-action span{display:none}
+ .composer-action{width:36px;padding:0}
+}
