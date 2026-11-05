@@ -66,6 +66,25 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    function handleShortcuts(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setActiveId(null);
+        setTab('chats');
+        setInput('');
+        setError('');
+        setSidebarOpen(false);
+      }
+      if (event.key === 'Escape') {
+        setSettingsOpen(false);
+        setSidebarOpen(false);
+      }
+    }
+    window.addEventListener('keydown', handleShortcuts);
+    return () => window.removeEventListener('keydown', handleShortcuts);
+  }, []);
+
+  useEffect(() => {
     if (!hydrated) return;
     localStorage.setItem(CHAT_KEY, JSON.stringify(history));
   }, [history, hydrated]);
