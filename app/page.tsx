@@ -323,8 +323,8 @@ export default function Home() {
       {sidebarOpen && <button className="sidebar-scrim" aria-label="إغلاق القائمة" onClick={() => setSidebarOpen(false)} />}
       <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
         <div className="brand">
-          <div className="brand-mark"><Sparkles size={20} /></div>
-          <div className="brand-copy"><strong>AFAQ<span> AI</span></strong><small>INTELLIGENCE BEYOND LIMITS</small></div>
+          <div className="brand-mark"><img src="/afaq-mark.svg" alt="AFAQ AI" /></div>
+          <div className="brand-copy"><strong>AFAQ<span> AI</span></strong><small>THINK BEYOND. BUILD BEYOND.</small></div>
           <button className="icon-btn sidebar-toggle" onClick={() => setSidebarOpen(false)} aria-label="إغلاق القائمة"><PanelRightClose size={18} /></button>
         </div>
 
@@ -356,8 +356,8 @@ export default function Home() {
           <input ref={historyImportRef} type="file" accept="application/json,.json" hidden onChange={e => importHistory(e.target.files?.[0])} />
           <button className="side-link" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /> الإعدادات</button>
           <div className="profile">
-            <div className="avatar">A</div><div><b>آفاق AI</b><small>مساعدك الذكي</small></div>
-            <span className="profile-status"><i /> متصل بالخدمة</span>
+            <div className="avatar">A</div><div><b>AFAQ AI</b><small>مساعدك الذكي</small></div>
+            <span className="profile-status">PREVIEW</span>
           </div>
         </div>
       </aside>
@@ -366,11 +366,11 @@ export default function Home() {
         <header className="topbar">
           <div className="topbar-left">
             <button className="icon-btn menu-open" onClick={() => setSidebarOpen(true)} aria-label="فتح القائمة"><Menu size={20} /></button>
-            <div className="breadcrumb"><span>آفاق</span><b>/</b><strong>{activeTitle}</strong></div>
+            <div className="breadcrumb"><span>AFAQ AI</span><b>/</b><strong>{activeTitle}</strong></div>
           </div>
           <div className="top-actions">
             {activeChat && <button className="top-icon-btn" onClick={exportCurrentChat} title="تصدير المحادثة"><Download size={17} /><span>تصدير</span></button>}
-            <div className="model-select"><span className="model-dot" /> آفاق الذكي <ChevronDown size={14} /></div>
+            <div className="model-select"><span className="model-dot" /> AI ASSISTANT</div>
             <button className="top-icon-btn" onClick={() => setSettingsOpen(true)} title="الإعدادات"><Settings2 size={18} /></button>
           </div>
         </header>
@@ -407,8 +407,8 @@ export default function Home() {
             </div>
           ) : (
             <div className="welcome">
-              <div className="welcome-orb"><div className="orb-core"><Sparkles size={29} /></div><span className="orb-ring ring-one" /><span className="orb-ring ring-two" /></div>
-              <div className="eyebrow"><span /> YOUR SPACE TO THINK BIG</div>
+              <div className="welcome-orb"><div className="orb-core"><img src="/afaq-mark.svg" alt="" /></div><span className="orb-ring ring-one" /><span className="orb-ring ring-two" /></div>
+              <div className="eyebrow"><span /> THINK BEYOND. BUILD BEYOND.</div>
               <h1>أهلاً بك في <em>آفاق</em></h1>
               <p className="welcome-copy">فكّر، تعلّم، اكتب الكود، وحوّل أفكارك إلى مشاريع.<br />ابدأ محادثة جديدة، وسنتولى نحن التفاصيل التقنية.</p>
               <div className="quick-tools">
@@ -449,7 +449,7 @@ export default function Home() {
           <div className="settings-section"><h3>حجم نص المحادثة</h3><div className="font-size-control"><span>أ</span><input type="range" min="12" max="18" value={settings.fontSize} onChange={e => setSettings(s => ({ ...s, fontSize: Number(e.target.value) }))} /><b>{settings.fontSize}px</b></div></div>
           <label className="toggle-row"><span><b>الإرسال بزر Enter</b><small>أوقفه لكتابة أسطر متعددة بزر Enter.</small></span><input type="checkbox" checked={settings.enterToSend} onChange={e => setSettings(s => ({ ...s, enterToSend: e.target.checked }))} /></label>
           <div className="settings-section privacy-section"><div className="privacy-title"><ShieldCheck size={17} /><b>الخصوصية والبيانات</b></div><p>سجل المحادثات محفوظ محلياً في هذا المتصفح. عند إرسال رسالة، يُرسل محتواها إلى خادم آفاق ثم إلى مزوّد النموذج لتوليد الإجابة. قد يحتفظ المزوّد بالطلبات وفق شروطه؛ لا ترسل معلومات حساسة.</p><div className="privacy-actions"><button onClick={exportHistory} disabled={!history.length}><Download size={14} /> تصدير بياناتي</button><button className="danger-text" onClick={clearHistory} disabled={!history.length}><Trash2 size={14} /> حذف كل المحادثات</button></div></div>
-          <div className="settings-bottom"><span>AFAQ AI · الإصدار التجريبي 0.2</span><button className="modal-done" onClick={() => setSettingsOpen(false)}>حفظ وإغلاق</button></div>
+          <div className="settings-bottom"><span>AFAQ AI · VERSION 0.4.0</span><button className="modal-done" onClick={() => setSettingsOpen(false)}>حفظ وإغلاق</button></div>
         </section>
       </div>}
     </main>
