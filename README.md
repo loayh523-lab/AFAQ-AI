@@ -21,6 +21,10 @@ AFAQ AI is an Arabic-first AI workspace. The first test build runs a small open 
 
 The 0.5B model is intentionally small for an initial test. It is not comparable to large hosted models and may make mistakes, especially on complex coding tasks or long Arabic conversations.
 
+## Build verification
+
+The repository CI installs dependencies and runs `npm run build` on pull requests and pushes to `main`.
+
 ## Run locally
 
 Requires Node.js 20.9 or newer.
