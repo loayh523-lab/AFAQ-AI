@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHmac } from "node:crypto";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -49,6 +50,46 @@ function collectCitations(item: any) {
     }
   }
   return found;
+}
+
+type ContainerArtifact = { containerId: string; fileId: string; filename: string };
+
+function collectFileArtifacts(item: any): ContainerArtifact[] {
+  const found: ContainerArtifact[] = [];
+  for (const part of item?.content ?? []) {
+    for (const annotation of part?.annotations ?? []) {
+      const citation = annotation?.container_file_citation ?? annotation;
+      const isFileCitation =
+        annotation?.type === "container_file_citation" ||
+        annotation?.type === "file_citation" ||
+        typeof citation?.container_id === "string";
+      if (!isFileCitation) continue;
+      if (
+        typeof citation?.container_id === "string" &&
+        typeof citation?.file_id === "string"
+      ) {
+        found.push({
+          containerId: citation.container_id,
+          fileId: citation.file_id,
+          filename: typeof citation.filename === "string" ? citation.filename : "AFAQ-output",
+        });
+      }
+    }
+  }
+  return found;
+}
+
+function signedFileUrl(origin: string, artifact: ContainerArtifact, secret: string) {
+  const expires = Math.floor(Date.now() / 1000) + 15 * 60;
+  const filename = artifact.filename.replace(/[\\/\\r\\n\\0]/g, "_").slice(0, 120) || "AFAQ-output";
+  const payload = [artifact.containerId, artifact.fileId, filename, String(expires)].join("\\n");
+  const signature = createHmac("sha256", secret).update(payload).digest("hex");
+  const query = new URLSearchParams({ filename, expires: String(expires), signature });
+  return {
+    name: filename,
+    url: `${origin}/api/files/${encodeURIComponent(artifact.containerId)}/${encodeURIComponent(artifact.fileId)}?${query.toString()}`,
+    expiresAt: expires,
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -243,6 +284,7 @@ export async function POST(request: NextRequest) {
         let buffer = "";
         let answer = "";
         const citations: Array<{ title: string; url: string }> = [];
+        const fileArtifacts: ContainerArtifact[] = [];
         const seenImageCalls = new Set<string>();
         let streamFailure = "";
         let closed = false;
@@ -273,12 +315,18 @@ export async function POST(request: NextRequest) {
                 emit({ type: "image", data: item.result, mimeType: "image/png" });
               }
             }
-            if (item?.type === "message") citations.push(...collectCitations(item));
+            if (item?.type === "message") {
+              citations.push(...collectCitations(item));
+              fileArtifacts.push(...collectFileArtifacts(item));
+            }
           }
 
           if (event.type === "response.completed") {
             for (const item of event.response?.output ?? []) {
-              if (item?.type === "message") citations.push(...collectCitations(item));
+              if (item?.type === "message") {
+                citations.push(...collectCitations(item));
+                fileArtifacts.push(...collectFileArtifacts(item));
+              }
               if (item?.type === "image_generation_call" && typeof item.result === "string") {
                 const imageKey = typeof item.id === "string" ? item.id : item.result.slice(0, 48);
                 if (!seenImageCalls.has(imageKey)) {
@@ -310,12 +358,22 @@ export async function POST(request: NextRequest) {
           }
           if (buffer.trim()) handleEvent(buffer.trim());
           if (!streamFailure) {
+            const apiKey = process.env.OPENAI_API_KEY || process.env.AFAQ_OPENAI_API_KEY;
+            const files = apiKey
+              ? fileArtifacts
+                  .filter((artifact, index, all) =>
+                    all.findIndex((other) => other.containerId === artifact.containerId && other.fileId === artifact.fileId) === index
+                  )
+                  .map((artifact) => signedFileUrl(request.nextUrl.origin, artifact, apiKey))
+              : [];
             emit({
               type: "done",
               answer,
               citations: citations.filter((citation, index, all) =>
                 all.findIndex((other) => other.url === citation.url) === index
               ),
+              files,
+              fileDownloadsConfigured: Boolean(apiKey),
             });
           }
         } catch (error) {
