@@ -40,9 +40,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.UUID
 
 private val Blue = Color(0xFF397BFF)
@@ -556,7 +553,7 @@ class MainActivity : ComponentActivity() {
                         HorizontalDivider(color = muted.copy(alpha = .15f))
                         Text("الخدمة والنموذج", color = primary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                         Text("آفاق يتصل بخادم مركزي ويتولى اختيار النموذج. لا تدخل أي مفتاح API داخل التطبيق.", color = muted, fontSize = 10.sp, lineHeight = 17.sp)
-                        Text("سجل المحادثات محفوظ على هذا الجهاز فقط.", color = accent, fontSize = 10.sp)
+                        Text("سجل المحادثات محفوظ على هذا الجهاز. عند إرسال رسالة تُرسل إلى مزوّد النموذج، وقد يحتفظ بها وفق شروطه؛ لا ترسل معلومات حساسة.", color = accent, fontSize = 10.sp, lineHeight = 16.sp)
                         TextButton(onClick = { confirmClear = true }) {
                             Icon(Icons.Default.DeleteSweep, null, tint = Danger, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(7.dp))
