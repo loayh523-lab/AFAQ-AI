@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUp, Bot, Check, ChevronDown, Code2, Copy, Download, FileText, History,
   Lightbulb, Menu, MessageSquarePlus, MoreHorizontal, Pencil, Plus, Search,
-  Settings2, ShieldCheck, Sparkles, Trash2, WandSparkles, X, BookOpen,
+  Settings2, ShieldCheck, Sparkles, Trash2, WandSparkles, X, BookOpen, Upload,
   BrainCircuit, GraduationCap, BriefcaseBusiness, PanelRightClose
 } from 'lucide-react';
 
@@ -57,6 +57,7 @@ export default function Home() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const historyImportRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setHistory(safeRead<ChatSession[]>(CHAT_KEY, []));
@@ -121,6 +122,49 @@ export default function Home() {
     anchor.download = 'afaq-conversations.json';
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function importHistory(file?: File) {
+    if (!file) return;
+    if (file.size > 5_000_000) { setError('ملف السجل أكبر من الحد المسموح (5 MB).'); return; }
+    try {
+      const parsed = JSON.parse(await file.text()) as { conversations?: unknown };
+      if (!Array.isArray(parsed.conversations)) throw new Error('صيغة ملف السجل غير صحيحة.');
+      const restored: ChatSession[] = [];
+      for (const item of parsed.conversations) {
+        if (!item || typeof item !== 'object') continue;
+        const chat = item as Partial<ChatSession>;
+        if (typeof chat.id !== 'string' || typeof chat.title !== 'string' || !Array.isArray(chat.messages)) continue;
+        const messages: Message[] = chat.messages.flatMap((entry: unknown) => {
+          if (!entry || typeof entry !== 'object') return [];
+          const message = entry as Partial<Message>;
+          if ((message.role !== 'user' && message.role !== 'assistant') || typeof message.content !== 'string') return [];
+          return [{
+            id: typeof message.id === 'string' ? message.id : crypto.randomUUID(),
+            role: message.role,
+            content: message.content.slice(0, 12000),
+            createdAt: typeof message.createdAt === 'number' ? message.createdAt : Date.now(),
+          }];
+        });
+        restored.push({
+          id: chat.id,
+          title: chat.title.slice(0, 70),
+          updatedAt: typeof chat.updatedAt === 'number' ? chat.updatedAt : Date.now(),
+          messages,
+        });
+      }
+      if (!restored.length) throw new Error('لم نعثر على محادثات صالحة داخل الملف.');
+      setHistory(prev => {
+        const byId = new Map(prev.map(chat => [chat.id, chat]));
+        restored.forEach(chat => { if (!byId.has(chat.id)) byId.set(chat.id, chat); });
+        return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+      });
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'تعذّر استيراد سجل المحادثات.');
+    } finally {
+      if (historyImportRef.current) historyImportRef.current.value = '';
+    }
   }
 
   async function copyText(id: string, value: string) {
@@ -281,6 +325,8 @@ export default function Home() {
 
         <div className="sidebar-footer">
           <button className="side-link" onClick={exportHistory} disabled={!history.length}><Download size={16} /> تصدير سجل المحادثات</button>
+          <button className="side-link" onClick={() => historyImportRef.current?.click()}><Upload size={16} /> استيراد نسخة احتياطية</button>
+          <input ref={historyImportRef} type="file" accept="application/json,.json" hidden onChange={e => importHistory(e.target.files?.[0])} />
           <button className="side-link" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /> الإعدادات</button>
           <div className="profile">
             <div className="avatar">A</div><div><b>آفاق AI</b><small>مساعدك الذكي</small></div>
