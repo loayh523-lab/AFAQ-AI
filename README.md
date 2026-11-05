@@ -2,67 +2,68 @@
 
 **THINK BEYOND. BUILD BEYOND.**
 
-AFAQ AI is an Arabic-first AI workspace built to help people think, learn, research, write, code and turn ideas into practical projects.
+AFAQ AI is an Arabic-first AI workspace for learning, research, writing, coding and practical problem-solving.
 
-## Brand system
+## Brand
 
-- Product name: **AFAQ AI**
-- Brand line: **THINK BEYOND. BUILD BEYOND.**
-- Visual identity: midnight black, electric blue and intelligent green.
-- Primary mark: the A monogram with a horizon/orbit motif, representing ideas moving into action.
-- Interface language: Arabic-first, RTL, with English product branding.
+- Product: **AFAQ AI**
+- Tagline: **THINK BEYOND. BUILD BEYOND.**
+- Identity: midnight black, electric blue and intelligent green.
+- Interface: Arabic-first, RTL, with English product branding.
 
-## Current preview capabilities
+## Implemented in the current branch
 
-- Responsive Arabic RTL chat workspace.
-- Local conversation history with search, rename, delete, import and export.
-- Message editing and answer regeneration.
-- Preferences for theme, answer style, font size and Enter-to-send.
-- Starter workflows for coding, learning, writing, ideation and project planning.
-- Server-side chat endpoint at `POST /api/chat`; provider credentials stay on the server.
-- Android app shell uses the same managed endpoint and local conversation history.
+### Conversation experience
+- [x] Responsive Arabic RTL web chat and native Android client.
+- [x] Local conversation history, search, rename, delete, import and export.
+- [x] Edit prompts, regenerate answers, copy messages and preserve conversation context.
+- [x] Streaming assistant replies with typing feedback and recoverable error states.
+- [x] Markdown answers with headings, lists, GFM tables, code blocks, links and LaTeX equations.
+- [x] Theme, answer style, font size and Enter-to-send preferences.
+- [x] Mobile composer with multiline input, attachment picker and web/image actions.
+- [x] Local Android notifications when a response finishes while the app process remains alive in the background.
 
-## AI product requirements audit
+### Model and tools integration
+- [x] Server-managed model access through Vercel AI Gateway; provider credentials are not shipped in the client.
+- [x] Responses API streaming.
+- [x] Web search tool integration with source citations.
+- [x] Image understanding and PDF, Word, PowerPoint, Excel, CSV and text file inputs.
+- [x] Image-generation tool integration.
+- [x] Python code-interpreter tool integration for calculation and data analysis.
+- [x] Signed, short-lived download links for generated container files in the code path.
+- [ ] Download links require a private `OPENAI_API_KEY` or `AFAQ_OPENAI_API_KEY` in Vercel. This project currently has no such variable configured, so downloadable generated files are not yet enabled in the deployed environment.
+- [ ] Image editing of user-provided images is not exposed as a separate workflow yet.
 
-### Core experience
-- [x] Clear product name, slogan and visual identity.
-- [x] Arabic-first responsive chat interface.
-- [x] Conversation history and local persistence.
-- [x] Search, rename, delete, import and export history.
-- [x] Edit prompt, regenerate response, copy answer.
-- [x] Theme, response style and text-size preferences.
-- [ ] User accounts and secure sign-in.
-- [ ] Cross-device cloud sync and conversation backup.
-- [ ] Pin, archive, branch and organize conversations into projects.
+### Android
+- [x] Native Compose chat UI, local history and settings.
+- [x] Document picker and image/file upload request support.
+- [x] Streaming text responses, source links, generated-image display and generated-file link display.
+- [x] Notification permission and local notification channel.
+- [ ] Firebase Cloud Messaging for notifications after the application process is terminated.
+- [ ] Public production API origin and end-to-end device test.
 
-### Intelligence and tools
-- [x] Central server-managed model connection.
-- [x] Model/provider configuration kept server-side.
-- [ ] Live web search with source citations.
-- [ ] File and image uploads with document understanding.
-- [ ] Image generation and image editing.
-- [ ] Voice input and spoken responses.
-- [ ] Data analysis for CSV/XLSX and visual charts.
-- [ ] Reliable tool calling and multi-step agent workflows.
-- [ ] Sandboxed code execution and project workspace.
-- [ ] Model selection, capability labels and usage visibility.
+## Deployment prerequisites and current limitations
 
-### Trust, privacy and operations
-- [x] Input validation, payload limits and upstream timeout.
-- [x] Privacy notice explaining provider processing.
+This branch builds successfully in GitHub Actions and the Vercel preview deployment reached `READY`. However, the preview deployment is protected by Vercel SSO. The Android app cannot authenticate to that SSO-protected preview URL, so a real model response has **not** yet been verified from the installed Android app.
+
+Do not disable deployment protection or expose the AI endpoint publicly until secure sign-in, per-user quotas, request rate limits and abuse controls are in place. Model calls, image generation and code-interpreter usage can incur provider charges.
+
+### Required before public launch
+
 - [ ] Authentication and per-user authorization.
-- [ ] Server-side rate limits, abuse controls and quotas.
-- [ ] Published privacy policy, retention and deletion controls.
-- [ ] Error monitoring, service health and user feedback.
-- [ ] Accessibility checks, localization QA and automated tests.
+- [ ] Server-side rate limits, usage quotas and abuse prevention.
+- [ ] A public production API origin with authentication; do not point clients at a protected preview alias.
+- [ ] End-to-end smoke tests from web and Android against the actual provider.
+- [ ] Private OpenAI API key in Vercel to enable generated-file downloads.
+- [ ] Firebase Cloud Messaging for true push notifications after force-stop/termination.
+- [ ] Privacy policy, retention/deletion controls, monitoring and feedback reporting.
+- [ ] Cross-device accounts, cloud sync, projects, pins and archive.
 
-## Important current limitations
+## Server configuration
 
-This repository is a preview, not a finished all-in-one AI service. Image generation, uploads, voice, web search, cloud accounts/sync and sandboxed coding are not implemented yet. The Android client currently targets a Vercel preview deployment; it must be changed to an accessible production endpoint before public use. Do not describe a feature as available until its backend, UI, security and tests are complete.
+Vercel deployments use the deployment OIDC identity to authenticate server-side requests to AI Gateway. The client never receives that token. Optional `AFAQ_MODEL` and `AFAQ_IMAGE_MODEL` variables select server-side models.
 
-## Server operation
-
-Vercel deployments use the deployment OIDC identity to authenticate server-side requests to AI Gateway. The client never receives that token. The optional `AFAQ_MODEL` variable selects the server-side model. Live availability and provider eligibility must be verified on the deployed environment.
+To enable generated-file downloads, add `OPENAI_API_KEY` (or `AFAQ_OPENAI_API_KEY`) as a **private encrypted environment variable** in the Vercel project. Never place this key in the Android app, browser code, repository or chat messages. Treat provider keys and model usage as sensitive account credentials.
 
 ## Local development
 
@@ -73,7 +74,7 @@ npm install
 npm run dev
 ```
 
-Local model requests require an authorized Vercel OIDC context.
+Local AI generation requires an authorized Vercel OIDC context or a private server-side AI Gateway credential. The Android client reads its API origin from `AFAQ_API_BASE_URL` in Gradle configuration.
 
 ## Android build
 
@@ -83,4 +84,4 @@ gradle --no-daemon :android:app:assembleDebug
 
 ## Privacy
 
-Conversation history is stored locally in the browser or Android app. Messages sent for generation are forwarded by the AFAQ server to the configured model provider. Do not send passwords or confidential information.
+Conversation history is stored locally in the browser or Android app. Messages and attachments submitted for generation are sent by the AFAQ server to the configured model provider. Do not send passwords, payment details or confidential information.
