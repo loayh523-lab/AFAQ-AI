@@ -2,24 +2,25 @@
 
 **Intelligence Beyond Limits**
 
-AFAQ AI is an Arabic-first AI workspace. The first test build runs a small open model directly in the browser with WebGPU.
+AFAQ AI is an Arabic-first AI workspace with a server-managed chat API. End users do not enter provider API keys or download model weights.
 
-## Current MVP
+## Current preview
 
-- Premium responsive Arabic RTL chat interface.
-- Local inference using WebLLM and Qwen 2.5 0.5B Instruct (4-bit).
-- No provider API key is required for the local test model.
-- Chat prompts are processed on the device after the model files are downloaded.
-- Model loading progress and a clear WebGPU compatibility message.
+- Premium Arabic RTL chat interface.
+- Server-side `POST /api/chat` endpoint compatible with OpenAI-style chat completion providers.
+- Provider credentials remain in server environment variables and are never sent to the browser or Android client.
+- Request validation, payload limits, bounded history, timeouts, and generic provider error messages.
+- Android preview uses the same server-managed chat concept.
 
-## Requirements
+## Server configuration
 
-- A modern browser with WebGPU support.
-- Approximately 945 MB of available GPU memory for this model configuration.
-- A stable connection for the first model download. The browser caches model files for later use where supported.
-- Devices without compatible WebGPU hardware cannot run this local model in the browser.
+Set these environment variables in the hosting platform (not in the app):
 
-The 0.5B model is intentionally small for an initial test. It is not comparable to large hosted models and may make mistakes, especially on complex coding tasks or long Arabic conversations.
+- `AFAQ_PROVIDER_API_KEY`: provider secret.
+- `AFAQ_PROVIDER_URL`: OpenAI-compatible chat completions URL.
+- `AFAQ_MODEL`: model identifier supported by that provider.
+
+The default URL/model are examples only. The service will return a friendly unavailable response until a real provider secret is configured server-side. Never commit secrets to Git or embed them in an APK.
 
 ## Run locally
 
@@ -28,24 +29,12 @@ Requires Node.js 20.9 or newer.
 ```bash
 npm install
 npm run dev
-```
+``
 
-Open http://localhost:3000, choose **تحميل نموذج الاختبار**, wait for the model to initialize, and then send a message.
+## Deploy
 
-## Deployment
+Deploy the Next.js project to a Node.js-compatible host such as Vercel, then add the three server environment variables in the project's settings. Redeploy after adding or changing secrets.
 
-Import this repository into Vercel, use the default Next.js settings, and deploy. No environment variables are required for the local model. The deployed site still relies on the visitor's browser and device to run inference.
+## Privacy
 
-## Roadmap
-
-1. Improve local model choices and device capability detection.
-2. Add conversation export and optional local persistence.
-3. Add a secure project workspace for coding tasks.
-4. Add image generation through an age-appropriate, policy-compliant provider.
-5. Build the Android app shell.
-
-## Model and runtime
-
-- Runtime: [WebLLM](https://github.com/mlc-ai/web-llm)
-- Model: `Qwen2.5-0.5B-Instruct-q4f16_1-MLC`
-- Inference is performed in the browser using WebGPU.
+Chat messages are sent to the configured model provider for generation. Do not send passwords, payment details, or other sensitive information. Add authentication, rate limiting, abuse controls, and a privacy notice before opening the service publicly.
