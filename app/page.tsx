@@ -42,6 +42,43 @@ function makeTitle(text: string) {
   return normalized.length > 38 ? normalized.slice(0, 38) + '…' : normalized || 'محادثة جديدة';
 }
 
+async function encodeAttachment(file: File) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  const mime = file.type || 'application/octet-stream';
+  return { name: file.name, type: mime, data: `data:${mime};base64,${btoa(binary)}` };
+}
+
+async function readAfaqStream(response: Response, onEvent: (event: any) => void) {
+  if (!response.body) throw new Error('الخادم لم يرسل تدفق الإجابة.');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      const raw = line.slice(5).trim();
+      if (!raw) continue;
+      try { onEvent(JSON.parse(raw)); } catch (error) {
+        if (error instanceof Error && error.message.startsWith('AFAQ:')) throw error;
+      }
+    }
+  }
+  if (buffer.startsWith('data:')) {
+    try { onEvent(JSON.parse(buffer.slice(5).trim())); } catch (error) {
+      if (error instanceof Error && error.message.startsWith('AFAQ:')) throw error;
+    }
+  }
+}
+
 export default function Home() {
   const [history, setHistory] = useState<ChatSession[]>([]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -242,26 +279,52 @@ export default function Home() {
     setActiveId(chat.id);
     setLoading(true);
     setError('');
+    let finished = false;
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: base.slice(-20).map(({ role, content }) => ({ role, content })),
-          preferences: { responseStyle: settings.responseStyle },
+          messages: base.slice(-24).map(({ role, content }) => ({ role, content })),
+          preferences: { responseStyle: settings.responseStyle, webSearch },
         }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'تعذّر إعادة إنشاء الإجابة.');
-      if (typeof data.answer !== 'string' || !data.answer.trim()) throw new Error('وصل رد غير صالح من الخدمة.');
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'تعذّر إعادة إنشاء الإجابة.');
+      }
+      await readAfaqStream(response, event => {
+        if (event.type === 'delta' && typeof event.text === 'string') {
+          updateSession(chat.id, current => ({
+            ...current,
+            messages: current.messages.map(message => message.id === assistant.id ? { ...message, content: message.content + event.text } : message),
+          }));
+        }
+        if (event.type === 'image' && typeof event.data === 'string') {
+          setGeneratedImages(current => ({ ...current, [assistant.id]: [...(current[assistant.id] || []), `data:${event.mimeType || 'image/png'};base64,${event.data}`] }));
+        }
+        if (event.type === 'done') {
+          finished = true;
+          updateSession(chat.id, current => ({
+            ...current,
+            updatedAt: Date.now(),
+            messages: current.messages.map(message => message.id === assistant.id ? {
+              ...message,
+              content: message.content || 'تم تنفيذ الطلب.',
+              citations: Array.isArray(event.citations) ? event.citations : [],
+            } : message),
+          }));
+        }
+        if (event.type === 'error') throw new Error('AFAQ:' + (event.message || 'تعذّر إكمال الرد.'));
+      });
+      if (!finished) throw new Error('لم يكتمل الرد. أعد المحاولة.');
+    } catch (e) {
+      const message = e instanceof Error ? e.message.replace(/^AFAQ:/, '') : 'تعذّرت إعادة إنشاء الإجابة.';
       updateSession(chat.id, current => ({
         ...current,
-        updatedAt: Date.now(),
-        messages: current.messages.map(message => message.id === assistant.id ? { ...message, content: data.answer } : message),
+        messages: current.messages.map(item => item.id === assistant.id ? { ...item, content: item.content || 'انقطع الاتصال قبل اكتمال الإجابة.' } : item),
       }));
-    } catch (e) {
-      updateSession(chat.id, current => ({ ...current, messages: current.messages.filter(message => message.id !== assistant.id) }));
-      setError(e instanceof Error ? e.message : 'تعذّرت إعادة إنشاء الإجابة.');
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -269,16 +332,25 @@ export default function Home() {
 
   async function send(raw = input) {
     const value = raw.trim();
-    if (!value || loading) return;
+    const selectedFiles = [...files];
+    if ((!value && selectedFiles.length === 0) || loading) return;
+    if (selectedFiles.length > 6 || selectedFiles.some(file => file.size > 10_000_000) || selectedFiles.reduce((sum, file) => sum + file.size, 0) > 20_000_000) {
+      setError('الحد المسموح 6 ملفات وبحجم إجمالي 20 MB.');
+      return;
+    }
 
+    const prompt = value || 'حلّل الملفات المرفقة واشرح محتواها.';
     const chatId = activeId ?? crypto.randomUUID();
     const now = Date.now();
     const existing = history.find(chat => chat.id === chatId);
-    const userMessage: Message = { id: crypto.randomUUID(), role: 'user', content: value, createdAt: now };
+    const userMessage: Message = {
+      id: crypto.randomUUID(), role: 'user', content: prompt, createdAt: now,
+      files: selectedFiles.map(file => ({ name: file.name, type: file.type })),
+    };
     const assistantMessage: Message = { id: crypto.randomUUID(), role: 'assistant', content: '', createdAt: now + 1 };
     const pending: ChatSession = existing
       ? { ...existing, updatedAt: now, messages: [...existing.messages, userMessage, assistantMessage] }
-      : { id: chatId, title: makeTitle(value), updatedAt: now, messages: [userMessage, assistantMessage] };
+      : { id: chatId, title: makeTitle(prompt), updatedAt: now, messages: [userMessage, assistantMessage] };
 
     setActiveId(chatId);
     setTab('chats');
@@ -287,26 +359,59 @@ export default function Home() {
     setLoading(true);
     setHistory(prev => [pending, ...prev.filter(chat => chat.id !== chatId)].sort((a, b) => b.updatedAt - a.updatedAt));
 
+    let finished = false;
     try {
+      const encodedFiles = await Promise.all(selectedFiles.map(encodeAttachment));
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: pending.messages.filter(message => message.content.trim()).slice(-20).map(({ role, content }) => ({ role, content })),
-          preferences: { responseStyle: settings.responseStyle },
+          messages: pending.messages.filter(message => message.content.trim()).slice(-24).map(({ role, content }) => ({ role, content })),
+          attachments: encodedFiles,
+          preferences: { responseStyle: settings.responseStyle, webSearch, generateImage },
         }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'تعذّر الحصول على إجابة.');
-      if (typeof data.answer !== 'string' || !data.answer.trim()) throw new Error('وصل رد غير صالح من الخدمة.');
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'تعذّر الحصول على إجابة.');
+      }
+      await readAfaqStream(response, event => {
+        if (event.type === 'delta' && typeof event.text === 'string') {
+          updateSession(chatId, chat => ({
+            ...chat,
+            messages: chat.messages.map(message => message.id === assistantMessage.id ? { ...message, content: message.content + event.text } : message),
+          }));
+        }
+        if (event.type === 'image' && typeof event.data === 'string') {
+          setGeneratedImages(current => ({ ...current, [assistantMessage.id]: [...(current[assistantMessage.id] || []), `data:${event.mimeType || 'image/png'};base64,${event.data}`] }));
+        }
+        if (event.type === 'done') {
+          finished = true;
+          updateSession(chatId, chat => ({
+            ...chat,
+            updatedAt: Date.now(),
+            messages: chat.messages.map(message => message.id === assistantMessage.id ? {
+              ...message,
+              content: message.content || 'تم تنفيذ الطلب.',
+              citations: Array.isArray(event.citations) ? event.citations : [],
+            } : message),
+          }));
+        }
+        if (event.type === 'error') throw new Error('AFAQ:' + (event.message || 'تعذّر إكمال الرد.'));
+      });
+      if (!finished) throw new Error('لم يكتمل الرد. أعد المحاولة.');
+      setFiles([]);
+    } catch (e) {
+      const message = e instanceof Error ? e.message.replace(/^AFAQ:/, '') : 'حدث خطأ أثناء الاتصال بآفاق.';
       updateSession(chatId, chat => ({
         ...chat,
-        updatedAt: Date.now(),
-        messages: chat.messages.map(message => message.id === assistantMessage.id ? { ...message, content: data.answer } : message),
+        messages: chat.messages.map(item => item.id === assistantMessage.id ? {
+          ...item,
+          content: item.content || 'ما كدرت أكمل الرد بسبب انقطاع الاتصال.',
+        } : item),
       }));
-    } catch (e) {
-      updateSession(chatId, chat => ({ ...chat, messages: chat.messages.filter(message => message.id !== assistantMessage.id) }));
-      setError(e instanceof Error ? e.message : 'حدث خطأ أثناء الاتصال بآفاق.');
+      setInput(value);
+      setError(message);
     } finally {
       setLoading(false);
       inputRef.current?.focus();
