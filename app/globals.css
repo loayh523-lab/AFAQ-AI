@@ -292,3 +292,29 @@ button:disabled{cursor:not-allowed;opacity:.45}
  .composer-action span{display:none}
  .composer-action{width:36px;padding:0}
 }
+
+
+/* Rich answer typography: Markdown, code, tables and equations */
+.message-text{white-space:normal;overflow-wrap:anywhere;line-height:1.95}
+.message-text p{margin:0 0 12px}
+.message-text p:last-child{margin-bottom:0}
+.message-text h1,.message-text h2,.message-text h3,.message-text h4{color:var(--text);font-weight:700;line-height:1.6;margin:18px 0 9px}
+.message-text h1{font-size:1.3em}.message-text h2{font-size:1.18em}.message-text h3{font-size:1.08em}
+.message-text ul,.message-text ol{padding-inline-start:24px;margin:8px 0 14px}
+.message-text li{padding:3px 0}
+.message-text blockquote{margin:12px 0;padding:9px 14px;border-inline-start:3px solid var(--blue);background:var(--panel-2);border-radius:7px;color:var(--muted)}
+.message-text a{color:var(--blue);text-decoration:underline;text-underline-offset:3px}
+.message-text :not(pre)>code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.9em;background:var(--panel-2);border:1px solid var(--line);padding:2px 6px;border-radius:6px;color:var(--green);direction:ltr;unicode-bidi:isolate}
+.message-text .code-block{direction:ltr;text-align:left;overflow:auto;max-width:100%;background:#070d18;border:1px solid rgba(102,144,204,.2);border-radius:12px;padding:15px;margin:12px 0;color:#e6eefc;line-height:1.7;font:12px/1.75 ui-monospace,SFMono-Regular,Consolas,monospace}
+.message-text .code-block code{font:inherit;white-space:pre}
+.message-text hr{border:0;border-top:1px solid var(--line);margin:16px 0}
+.message-text .table-scroll{max-width:100%;overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:10px}
+.message-text table{border-collapse:collapse;width:100%;min-width:340px;font-size:.88em}
+.message-text th,.message-text td{padding:9px 11px;border-bottom:1px solid var(--line);border-inline-end:1px solid var(--line);text-align:start}
+.message-text th{background:var(--panel-2);font-weight:700}
+.message-text tr:last-child td{border-bottom:0}
+.message-text img{max-width:100%;height:auto;border-radius:10px}
+.message-text .katex-display{direction:ltr;overflow-x:auto;overflow-y:hidden;padding:7px 0;margin:12px 0}
+.message-text .katex{font-size:1.05em}
+.message.user .message-text{white-space:normal}
+.message.user .message-text p:last-child{margin-bottom:0}
