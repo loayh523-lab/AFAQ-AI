@@ -1,10 +1,12 @@
 package com.afaq.ai
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,343 +23,573 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.lifecycleScope
-import com.google.ai.edge.litertlm.Backend
-import com.google.ai.edge.litertlm.Conversation
-import com.google.ai.edge.litertlm.ConversationConfig
-import com.google.ai.edge.litertlm.Contents
-import com.google.ai.edge.litertlm.Engine
-import com.google.ai.edge.litertlm.EngineConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.catch
-import java.io.File
+import org.json.JSONArray
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
 
-private val Ink = Color(0xFF071711)
-private val Panel = Color(0xFF10251C)
-private val Panel2 = Color(0xFF163126)
-private val Gold = Color(0xFFD8B879)
-private val Mint = Color(0xFF9CC9AA)
-private val TextMain = Color(0xFFEAF1E9)
-private val TextMuted = Color(0xFF91A99A)
-private const val MODEL_URL = "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/Qwen3-0.6B.litertlm"
-private const val MODEL_FILE = "Qwen3-0.6B.litertlm"
+private val Blue = Color(0xFF397BFF)
+private val Green = Color(0xFF25C68A)
+private val Ink = Color(0xFF060A12)
+private val Panel = Color(0xFF0B1220)
+private val Panel2 = Color(0xFF101A2A)
+private val TextMain = Color(0xFFEDF3FF)
+private val TextMuted = Color(0xFF8795AA)
+private val Danger = Color(0xFFEF737B)
 
-data class ChatMessage(val id: Long, val user: Boolean, val text: String)
+private const val PREFS_NAME = "afaq_preferences"
+private const val HISTORY_KEY = "chat_history_v2"
 
-class MainActivity : ComponentActivity() {
-    private var engine: Engine? = null
-    private var conversation: Conversation? = null
+data class AfaqMessage(
+    val id: String,
+    val role: String,
+    val text: String,
+    val timestamp: Long
+)
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            AfaqApp(
-                modelFile = File(filesDir, MODEL_FILE),
-                onDownload = { progress -> downloadModel(progress) },
-                onInitialize = { initializeModel() },
-                onSend = { prompt, onChunk -> sendPrompt(prompt, onChunk) },
-                onClose = { closeModel() }
-            )
-        }
-    }
+data class AfaqChat(
+    val id: String,
+    val title: String,
+    val updatedAt: Long,
+    val messages: List<AfaqMessage>
+)
 
-    private suspend fun downloadModel(onProgress: (Int) -> Unit) = withContext(Dispatchers.IO) {
-        val target = File(filesDir, MODEL_FILE)
-        if (target.exists() && target.length() > 400_000_000L) {
-            onProgress(100)
-            return@withContext
-        }
-        val partial = File(filesDir, "$MODEL_FILE.part")
-        val connection = (URL(MODEL_URL).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 30_000
-            readTimeout = 60_000
-            instanceFollowRedirects = true
-            setRequestProperty("User-Agent", "AFAQ-AI-Android")
-        }
-        try {
-            connection.connect()
-            if (connection.responseCode !in 200..299) error("تعذّر تنزيل النموذج: HTTP ${connection.responseCode}")
-            val total = connection.contentLengthLong
-            connection.inputStream.use { input ->
-                partial.outputStream().buffered().use { output ->
-                    val buffer = ByteArray(1024 * 256)
-                    var count: Int
-                    var received = 0L
-                    while (input.read(buffer).also { count = it } >= 0) {
-                        if (count == 0) continue
-                        output.write(buffer, 0, count)
-                        received += count
-                        if (total > 0) onProgress(((received * 100) / total).toInt().coerceIn(0, 99))
+private fun loadChats(context: Context): List<AfaqChat> {
+    return try {
+        val raw = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(HISTORY_KEY, "[]") ?: "[]"
+        val array = JSONArray(raw)
+        buildList {
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                val messageArray = item.optJSONArray("messages") ?: JSONArray()
+                val messages = buildList {
+                    for (j in 0 until messageArray.length()) {
+                        val message = messageArray.optJSONObject(j) ?: continue
+                        add(AfaqMessage(
+                            id = message.optString("id", UUID.randomUUID().toString()),
+                            role = message.optString("role", "assistant"),
+                            text = message.optString("text", ""),
+                            timestamp = message.optLong("timestamp", System.currentTimeMillis())
+                        ))
                     }
                 }
+                add(AfaqChat(
+                    id = item.optString("id"),
+                    title = item.optString("title", "محادثة جديدة"),
+                    updatedAt = item.optLong("updatedAt", System.currentTimeMillis()),
+                    messages = messages
+                ))
             }
-            if (partial.length() < 400_000_000L) error("حجم ملف النموذج أقل من المتوقع؛ أعد المحاولة.")
-            if (!partial.renameTo(target)) {
-                partial.copyTo(target, overwrite = true)
-                partial.delete()
-            }
-            onProgress(100)
-        } catch (t: Throwable) {
-            partial.delete()
-            throw t
-        } finally {
-            connection.disconnect()
+        }.sortedByDescending { it.updatedAt }
+    } catch (_: Exception) {
+        emptyList()
+    }
+}
+
+private fun saveChats(context: Context, chats: List<AfaqChat>) {
+    val array = JSONArray()
+    chats.forEach { chat ->
+        val messages = JSONArray()
+        chat.messages.forEach { message ->
+            messages.put(JSONObject()
+                .put("id", message.id)
+                .put("role", message.role)
+                .put("text", message.text)
+                .put("timestamp", message.timestamp))
         }
+        array.put(JSONObject()
+            .put("id", chat.id)
+            .put("title", chat.title)
+            .put("updatedAt", chat.updatedAt)
+            .put("messages", messages))
     }
+    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        .edit().putString(HISTORY_KEY, array.toString()).apply()
+}
 
-    private suspend fun initializeModel() = withContext(Dispatchers.IO) {
-        val model = File(filesDir, MODEL_FILE)
-        check(model.exists() && model.length() > 400_000_000L) { "حمّل النموذج أولاً." }
-        closeModel()
-        val newEngine = Engine(EngineConfig(modelPath = model.absolutePath, backend = Backend.CPU(), cacheDir = cacheDir.absolutePath))
-        newEngine.initialize()
-        engine = newEngine
-        conversation = newEngine.createConversation(
-            ConversationConfig(systemInstruction = Contents.of("أنت آفاق، مساعد ذكي عربي. أجب باللغة العربية الواضحة، وكن دقيقاً ومفيداً. عند طلب البرمجة قدم أمثلة صحيحة واشرحها. لا تخترع معلومات عند عدم المعرفة."))
-        )
+private fun postChat(messages: List<AfaqMessage>, responseStyle: String): String {
+    val endpoint = BuildConfig.AFAQ_API_BASE_URL.trimEnd('/') + "/api/chat"
+    val payloadMessages = JSONArray()
+    messages.filter { it.text.isNotBlank() && (it.role == "user" || it.role == "assistant") }.forEach {
+        payloadMessages.put(JSONObject().put("role", it.role).put("content", it.text))
     }
+    val payload = JSONObject()
+        .put("messages", payloadMessages)
+        .put("preferences", JSONObject().put("responseStyle", responseStyle))
 
-    private suspend fun sendPrompt(prompt: String, onChunk: (String) -> Unit) {
-        val active = conversation ?: error("النموذج غير جاهز.")
-        active.sendMessageAsync(prompt).catch { throw it }.collect { message ->
-            onChunk(message.text)
+    val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+        requestMethod = "POST"
+        connectTimeout = 15_000
+        readTimeout = 35_000
+        doOutput = true
+        setRequestProperty("Content-Type", "application/json; charset=utf-8")
+        setRequestProperty("Accept", "application/json")
+    }
+    try {
+        connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
+        val code = connection.responseCode
+        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+        val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+        val response = try { JSONObject(responseText) } catch (_: Exception) { JSONObject() }
+        if (code !in 200..299) {
+            throw IllegalStateException(response.optString("error").ifBlank { "تعذّر الاتصال بآفاق (HTTP $code)." })
         }
+        response.optString("answer").takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("لم تصل إجابة صالحة من آفاق.")
+    } finally {
+        connection.disconnect()
     }
+}
 
-    private fun closeModel() {
-        try { conversation?.close() } catch (_: Throwable) {}
-        try { engine?.close() } catch (_: Throwable) {}
-        conversation = null
-        engine = null
-    }
+private fun chatTitle(text: String): String {
+    val clean = text.replace("\\s+".toRegex(), " ").trim()
+    return if (clean.length > 36) clean.take(36) + "…" else clean.ifBlank { "محادثة جديدة" }
+}
 
-    override fun onDestroy() {
-        closeModel()
-        super.onDestroy()
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent { AfaqApp() }
     }
 
     @Composable
-    private fun AfaqApp(
-        modelFile: File,
-        onDownload: suspend ((Int) -> Unit) -> Unit,
-        onInitialize: suspend () -> Unit,
-        onSend: suspend (String, (String) -> Unit) -> Unit,
-        onClose: () -> Unit
-    ) {
+    private fun AfaqApp() {
+        val context = LocalContext.current
+        val preferences = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
         val scope = rememberCoroutineScope()
-        var downloaded by remember { mutableStateOf(modelFile.exists() && modelFile.length() > 400_000_000L) }
-        var ready by remember { mutableStateOf(false) }
-        var busy by remember { mutableStateOf(false) }
-        var progress by remember { mutableIntStateOf(0) }
-        var status by remember { mutableStateOf(if (downloaded) "النموذج محفوظ على جهازك" else "حمّل النموذج للبدء") }
-        var error by remember { mutableStateOf("") }
-        var settingsOpen by remember { mutableStateOf(false) }
+
+        var chats by remember { mutableStateOf(loadChats(context)) }
+        var activeChatId by remember { mutableStateOf<String?>(null) }
         var input by remember { mutableStateOf("") }
-        var messages by remember { mutableStateOf(listOf<ChatMessage>()) }
+        var search by remember { mutableStateOf("") }
+        var busy by remember { mutableStateOf(false) }
+        var error by remember { mutableStateOf("") }
+        var drawerOpen by remember { mutableStateOf(false) }
+        var settingsOpen by remember { mutableStateOf(false) }
+        var theme by remember { mutableStateOf(preferences.getString("theme", "blue") ?: "blue") }
+        var responseStyle by remember { mutableStateOf(preferences.getString("responseStyle", "balanced") ?: "balanced") }
+        var enterToSend by remember { mutableStateOf(preferences.getBoolean("enterToSend", true)) }
+        var selectedTab by remember { mutableStateOf("chats") }
+        var renameTarget by remember { mutableStateOf<AfaqChat?>(null) }
+        var renameValue by remember { mutableStateOf("") }
+        var deleteTarget by remember { mutableStateOf<AfaqChat?>(null) }
+        var confirmClear by remember { mutableStateOf(false) }
 
-        MaterialTheme(colorScheme = darkColorScheme(
-            primary = Gold, secondary = Mint, background = Ink, surface = Panel,
-            onPrimary = Ink, onBackground = TextMain, onSurface = TextMain
-        )) {
-            Column(Modifier.fillMaxSize().background(Ink)) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 15.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(Modifier.size(42.dp).background(Brush.linearGradient(listOf(Gold, Color(0xFF8B7046))), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.AutoAwesome, null, tint = Ink, modifier = Modifier.size(23.dp))
-                    }
-                    Spacer(Modifier.width(11.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("AFAQ AI", color = TextMain, fontWeight = FontWeight.Bold, fontSize = 18.sp, letterSpacing = 1.sp)
-                        Text("آفاق · مساحة ذكاء اصطناعي", color = TextMuted, fontSize = 10.sp)
-                    }
-                    Surface(color = if (ready) Color(0xFF1C4934) else Panel2, shape = CircleShape) {
-                        Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(6.dp).background(if (ready) Mint else Gold, CircleShape))
-                            Spacer(Modifier.width(6.dp))
-                            Text(if (ready) "جاهز" else "محلي", color = if (ready) Mint else Gold, fontSize = 10.sp)
-                        }
-                    }
-                    Spacer(Modifier.width(4.dp))
-                    IconButton(onClick = { settingsOpen = true }) {
-                        Icon(Icons.Default.Settings, "الإعدادات", tint = TextMuted)
-                    }
-                    IconButton(onClick = { messages = emptyList(); error = "" }) {
-                        Icon(Icons.Default.AddComment, "محادثة جديدة", tint = Gold)
-                    }
-                }
-                HorizontalDivider(color = Color.White.copy(alpha = .07f))
-                if (!ready && messages.isEmpty()) {
-                    Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                        Box(Modifier.size(92.dp).background(Brush.radialGradient(listOf(Color(0xFF345541), Panel)), CircleShape).border(1.dp, Gold.copy(alpha = .35f), CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.AutoAwesome, null, tint = Gold, modifier = Modifier.size(36.dp))
-                        }
-                        Spacer(Modifier.height(25.dp))
-                        Text("مرحباً بك في آفاق", color = TextMain, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(9.dp))
-                        Text("ذكاء اصطناعي يعمل على جهازك،
-ومحادثاتك تبقى خاصة.", color = TextMuted, fontSize = 13.sp, lineHeight = 22.sp, textAlign = TextAlign.Center)
-                        Spacer(Modifier.height(26.dp))
-                        Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(17.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Memory, null, tint = Gold)
-                                    Spacer(Modifier.width(9.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text("Qwen3 · 0.6B", color = TextMain, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                                        Text("نموذج محلي · تنزيل لمرة واحدة", color = TextMuted, fontSize = 10.sp)
-                                    }
-                                    Text("~600 MB", color = Gold, fontSize = 10.sp)
-                                }
-                                Spacer(Modifier.height(14.dp))
-                                Text(status, color = TextMuted, fontSize = 11.sp)
-                                if (busy) {
-                                    Spacer(Modifier.height(10.dp))
-                                    LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth(), color = Gold, trackColor = Panel2)
-                                    Text("$progress%", color = Gold, fontSize = 10.sp, modifier = Modifier.align(Alignment.End).padding(top = 5.dp))
-                                }
-                                Spacer(Modifier.height(13.dp))
-                                Button(
-                                    onClick = {
-                                        error = ""
-                                        busy = true
-                                        scope.launch {
-                                            try {
-                                                if (!downloaded) {
-                                                    status = "جارٍ تنزيل ملفات النموذج..."
-                                                    onDownload { progress = it }
-                                                    downloaded = true
-                                                }
-                                                status = "جارٍ تهيئة النموذج على جهازك..."
-                                                progress = 100
-                                                onInitialize()
-                                                ready = true
-                                                status = "النموذج جاهز"
-                                            } catch (t: Throwable) {
-                                                error = t.message ?: "حدث خطأ غير متوقع"
-                                                status = "تعذّر إكمال التشغيل"
-                                            } finally { busy = false }
-                                        }
-                                    },
-                                    enabled = !busy,
-                                    modifier = Modifier.fillMaxWidth().height(49.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Ink),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    if (busy) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Ink)
-                                    else Icon(Icons.Default.Download, null)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(if (downloaded) "تشغيل النموذج" else "تنزيل النموذج والبدء", fontWeight = FontWeight.Bold)
-                                }
-                                Text("يتطلب اتصالاً بالإنترنت للتنزيل الأول ومساحة فارغة كافية. بعد ذلك يعمل دون اتصال.", color = TextMuted, fontSize = 9.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 10.dp))
-                            }
-                        }
-                        if (error.isNotBlank()) Text(error, color = Color(0xFFFF9B91), fontSize = 11.sp, modifier = Modifier.padding(top = 12.dp))
-                    }
-                } else {
-                    LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(messages, key = { it.id }) { msg ->
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = if (msg.user) Arrangement.Start else Arrangement.End) {
-                                Surface(color = if (msg.user) Panel2 else Panel, shape = RoundedCornerShape(17.dp), modifier = Modifier.fillMaxWidth(.9f)) {
-                                    Column(Modifier.padding(13.dp)) {
-                                        Text(if (msg.user) "أنت" else "آفاق", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                        Spacer(Modifier.height(5.dp))
-                                        Text(msg.text, color = TextMain, fontSize = 13.sp, lineHeight = 21.sp)
-                                    }
-                                }
-                            }
-                        }
-                        if (busy) item { LinearProgressIndicator(modifier = Modifier.fillMaxWidth(.35f), color = Gold, trackColor = Panel2) }
-                    }
-                }
-                if (ready) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp).background(Panel, RoundedCornerShape(17.dp)).border(1.dp, Color.White.copy(alpha = .08f), RoundedCornerShape(17.dp)).padding(8.dp), verticalAlignment = Alignment.Bottom) {
-                        BasicTextField(
-                            value = input, onValueChange = { input = it },
-                            modifier = Modifier.weight(1f).padding(horizontal = 9.dp, vertical = 11.dp),
-                            textStyle = androidx.compose.ui.text.TextStyle(color = TextMain, fontSize = 14.sp, textDirection = androidx.compose.ui.text.style.TextDirection.ContentOrRtl),
-                            cursorBrush = androidx.compose.ui.graphics.SolidColor(Gold),
-                            decorationBox = { inner -> Box { if (input.isEmpty()) Text("اكتب رسالتك إلى آفاق...", color = TextMuted, fontSize = 13.sp); inner() } },
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                            keyboardActions = KeyboardActions(onSend = { submit(input, { input = "" }, { error = it }, { messages = messages + it }, { id, text -> messages = messages.map { item -> if (item.id == id) item.copy(text = text) else item } }, scope, onSend, { busy = it }) })
+        LaunchedEffect(chats) { saveChats(context, chats) }
+        LaunchedEffect(theme, responseStyle, enterToSend) {
+            preferences.edit()
+                .putString("theme", theme)
+                .putString("responseStyle", responseStyle)
+                .putBoolean("enterToSend", enterToSend)
+                .apply()
+        }
+
+        val isLight = theme == "light"
+        val background = if (isLight) Color(0xFFF0F4FA) else Ink
+        val surface = if (isLight) Color.White else Panel
+        val surface2 = if (isLight) Color(0xFFF5F8FC) else Panel2
+        val primary = if (theme == "green") Green else Blue
+        val accent = if (theme == "green") Blue else Green
+        val foreground = if (isLight) Color(0xFF17243A) else TextMain
+        val muted = if (isLight) Color(0xFF65758E) else TextMuted
+        val currentChat = chats.firstOrNull { it.id == activeChatId }
+        val filteredChats = chats.filter { it.title.contains(search, ignoreCase = true) }
+
+        fun updateChat(id: String, transform: (AfaqChat) -> AfaqChat) {
+            chats = chats.map { if (it.id == id) transform(it) else it }.sortedByDescending { it.updatedAt }
+        }
+
+        fun startNewChat() {
+            activeChatId = null
+            selectedTab = "chats"
+            input = ""
+            error = ""
+            drawerOpen = false
+        }
+
+        fun submit() {
+            val prompt = input.trim()
+            if (prompt.isEmpty() || busy) return
+            val now = System.currentTimeMillis()
+            val chatId = activeChatId ?: UUID.randomUUID().toString()
+            val existing = chats.firstOrNull { it.id == chatId }
+            val userMessage = AfaqMessage(UUID.randomUUID().toString(), "user", prompt, now)
+            val assistantMessage = AfaqMessage(UUID.randomUUID().toString(), "assistant", "", now + 1)
+            val pending = if (existing == null) {
+                AfaqChat(chatId, chatTitle(prompt), now, listOf(userMessage, assistantMessage))
+            } else {
+                existing.copy(updatedAt = now, messages = existing.messages + listOf(userMessage, assistantMessage))
+            }
+            chats = (listOf(pending) + chats.filterNot { it.id == chatId }).sortedByDescending { it.updatedAt }
+            activeChatId = chatId
+            selectedTab = "chats"
+            input = ""
+            error = ""
+            busy = true
+            scope.launch {
+                try {
+                    val answer = withContext(Dispatchers.IO) { postChat(pending.messages, responseStyle) }
+                    updateChat(chatId) { chat ->
+                        chat.copy(
+                            updatedAt = System.currentTimeMillis(),
+                            messages = chat.messages.map { if (it.id == assistantMessage.id) it.copy(text = answer) else it }
                         )
-                        IconButton(onClick = { submit(input, { input = "" }, { error = it }, { messages = messages + it }, { id, text -> messages = messages.map { item -> if (item.id == id) item.copy(text = text) else item } }, scope, onSend, { busy = it }) }, enabled = input.isNotBlank() && !busy, modifier = Modifier.size(42.dp).background(Gold, CircleShape)) {
-                            Icon(Icons.Default.ArrowUpward, null, tint = Ink)
-                        }
                     }
-                    if (error.isNotBlank()) Text(error, color = Color(0xFFFF9B91), fontSize = 10.sp, modifier = Modifier.padding(horizontal = 18.dp))
-                    Text("قد يخطئ النموذج؛ تحقق من المعلومات المهمة.", color = TextMuted, fontSize = 9.sp, modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp))
-                } else {
-                    Text("AFAQ AI  ·  ON-DEVICE INTELLIGENCE", color = TextMuted.copy(alpha = .6f), fontSize = 8.sp, letterSpacing = 1.3.sp, modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 15.dp))
+                } catch (exception: Exception) {
+                    updateChat(chatId) { chat -> chat.copy(messages = chat.messages.filterNot { it.id == assistantMessage.id }) }
+                    error = exception.message ?: "حدث خطأ أثناء الاتصال بآفاق."
+                } finally {
+                    busy = false
                 }
             }
         }
-            if (settingsOpen) {
-                AlertDialog(
-                    onDismissRequest = { settingsOpen = false },
-                    containerColor = Panel,
-                    title = { Text("إعدادات آفاق", color = TextMain, fontWeight = FontWeight.Bold) },
-                    text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                            Text("النموذج", color = Gold, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                            Text("Qwen3 · 0.6B — يعمل محلياً على جهازك", color = TextMain, fontSize = 13.sp)
-                            HorizontalDivider(color = Color.White.copy(alpha = .08f))
-                            Text("حالة التشغيل: " + if (ready) "جاهز" else if (downloaded) "تم التنزيل" else "لم يتم التنزيل", color = TextMuted, fontSize = 12.sp)
-                            Text("الخصوصية: نص المحادثة لا يُرسل إلى خادم خارجي. ملف النموذج يُنزّل من مستودع النموذج عند أول استخدام.", color = TextMuted, fontSize = 11.sp, lineHeight = 18.sp)
-                            Text("الإصدار التجريبي 0.1.0", color = TextMuted, fontSize = 10.sp)
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { settingsOpen = false }) {
-                            Text("إغلاق", color = Gold)
-                        }
-                    }
-                )
-            }
-        }
-    }
 
-    private fun submit(
-        raw: String,
-        clearInput: () -> Unit,
-        setError: (String) -> Unit,
-        append: (ChatMessage) -> Unit,
-        updateMessage: (Long, String) -> Unit,
-        scope: kotlinx.coroutines.CoroutineScope,
-        onSend: suspend (String, (String) -> Unit) -> Unit,
-        setBusy: (Boolean) -> Unit
-    ) {
-        val prompt = raw.trim()
-        if (prompt.isEmpty()) return
-        clearInput()
-        setError("")
-        val id = System.currentTimeMillis()
-        append(ChatMessage(id, true, prompt))
-        append(ChatMessage(id + 1, false, ""))
-        setBusy(true)
-        scope.launch {
-            val response = StringBuilder()
-            try {
-                onSend(prompt) { chunk ->
-                    response.append(chunk)
-                    updateMessage(id + 1, response.toString())
+        ModalNavigationDrawer(
+            drawerState = rememberDrawerState(if (drawerOpen) DrawerValue.Open else DrawerValue.Closed),
+            drawerContent = {
+                ModalDrawerSheet(drawerContainerColor = surface, drawerContentColor = foreground) {
+                    Row(Modifier.fillMaxWidth().padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(38.dp).background(Brush.linearGradient(listOf(primary, Color(0xFF173E83))), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.AutoAwesome, null, tint = Color.White)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("AFAQ AI", color = foreground, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                            Text("سجل ومساحة العمل", color = muted, fontSize = 10.sp)
+                        }
+                        IconButton(onClick = { drawerOpen = false }) { Icon(Icons.Default.Close, null, tint = muted) }
+                    }
+                    NavigationDrawerItem(
+                        label = { Text("محادثة جديدة", fontSize = 12.sp) },
+                        selected = false,
+                        onClick = { startNewChat() },
+                        icon = { Icon(Icons.Default.AddComment, null) },
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        colors = NavigationDrawerItemDefaults.colors(unselectedIconColor = primary, unselectedTextColor = foreground)
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("الأدوات والمساعدات", fontSize = 12.sp) },
+                        selected = selectedTab == "tools",
+                        onClick = { selectedTab = "tools"; drawerOpen = false },
+                        icon = { Icon(Icons.Default.AutoAwesome, null) },
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        colors = NavigationDrawerItemDefaults.colors(selectedContainerColor = primary.copy(alpha = .12f), selectedIconColor = primary, selectedTextColor = foreground, unselectedIconColor = muted, unselectedTextColor = foreground)
+                    )
+                    HorizontalDivider(Modifier.padding(vertical = 12.dp), color = muted.copy(alpha = .18f))
+                    Text("سجل المحادثات  ·  ${chats.size}", color = muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 5.dp))
+                    OutlinedTextField(
+                        value = search, onValueChange = { search = it },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                        placeholder = { Text("ابحث في محادثاتك", fontSize = 11.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, null) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = primary, unfocusedBorderColor = muted.copy(alpha = .25f),
+                            focusedTextColor = foreground, unfocusedTextColor = foreground,
+                            focusedContainerColor = surface2, unfocusedContainerColor = surface2
+                        )
+                    )
+                    LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+                        items(filteredChats, key = { it.id }) { chat ->
+                            var menuOpen by remember(chat.id) { mutableStateOf(false) }
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                                NavigationDrawerItem(
+                                    label = { Text(chat.title, maxLines = 1, fontSize = 10.sp) },
+                                    selected = activeChatId == chat.id && selectedTab == "chats",
+                                    onClick = { activeChatId = chat.id; selectedTab = "chats"; drawerOpen = false; error = "" },
+                                    icon = { Icon(Icons.Default.ChatBubbleOutline, null, modifier = Modifier.size(16.dp)) },
+                                    modifier = Modifier.weight(1f),
+                                    colors = NavigationDrawerItemDefaults.colors(
+                                        selectedContainerColor = primary.copy(alpha = .12f),
+                                        selectedIconColor = primary, selectedTextColor = foreground,
+                                        unselectedIconColor = muted, unselectedTextColor = foreground
+                                    )
+                                )
+                                Box {
+                                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, null, tint = muted) }
+                                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, modifier = Modifier.background(surface)) {
+                                        DropdownMenuItem(text = { Text("إعادة تسمية", fontSize = 12.sp) }, onClick = {
+                                            renameTarget = chat; renameValue = chat.title; menuOpen = false
+                                        }, leadingIcon = { Icon(Icons.Default.Edit, null) })
+                                        DropdownMenuItem(text = { Text("حذف", fontSize = 12.sp, color = Danger) }, onClick = {
+                                            deleteTarget = chat; menuOpen = false
+                                        }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = Danger) })
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    HorizontalDivider(color = muted.copy(alpha = .18f))
+                    NavigationDrawerItem(
+                        label = { Text("الإعدادات", fontSize = 12.sp) },
+                        selected = false,
+                        onClick = { settingsOpen = true; drawerOpen = false },
+                        icon = { Icon(Icons.Default.Settings, null) },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                        colors = NavigationDrawerItemDefaults.colors(unselectedIconColor = primary, unselectedTextColor = foreground)
+                    )
+                    Text("آفاق AI · 0.2", color = muted.copy(alpha = .75f), fontSize = 9.sp, modifier = Modifier.align(Alignment.CenterHorizontally).padding(12.dp))
                 }
-            } catch (t: Throwable) {
-                setError(t.message ?: "حدث خطأ أثناء التوليد")
-                updateMessage(id + 1, "تعذّر إنشاء الإجابة. جرّب مرة أخرى.")
-            } finally {
-                setBusy(false)
+            },
+            gesturesEnabled = true
+        ) {
+            MaterialTheme(colorScheme = if (isLight) lightColorScheme(primary = primary, secondary = accent, background = background, surface = surface, onBackground = foreground, onSurface = foreground) else darkColorScheme(primary = primary, secondary = accent, background = background, surface = surface, onPrimary = Color.White, onBackground = foreground, onSurface = foreground)) {
+                Column(Modifier.fillMaxSize().background(background)) {
+                    Row(
+                        Modifier.fillMaxWidth().background(surface).padding(horizontal = 11.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { drawerOpen = true }) { Icon(Icons.Default.Menu, "القائمة", tint = foreground) }
+                        Column(Modifier.weight(1f)) {
+                            Text("آفاق AI", color = foreground, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text(if (selectedTab == "tools") "الأدوات والمساعدات" else currentChat?.title ?: "مساحة ذكاء اصطناعي", color = muted, fontSize = 9.sp, maxLines = 1)
+                        }
+                        Surface(color = accent.copy(alpha = .12f), shape = CircleShape) {
+                            Row(Modifier.padding(horizontal = 9.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(6.dp).background(accent, CircleShape))
+                                Spacer(Modifier.width(6.dp))
+                                Text("AI", color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        IconButton(onClick = { settingsOpen = true }) { Icon(Icons.Default.Settings, "الإعدادات", tint = muted) }
+                        IconButton(onClick = { startNewChat() }) { Icon(Icons.Default.AddComment, "محادثة جديدة", tint = primary) }
+                    }
+                    HorizontalDivider(color = muted.copy(alpha = .13f))
+
+                    when {
+                        selectedTab == "tools" -> {
+                            LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                                item {
+                                    Text("اختر مساعدك", color = foreground, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                    Text("ابدأ من قالب جاهز ثم عدّل طلبك قبل الإرسال.", color = muted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp, bottom = 8.dp))
+                                }
+                                val templates = listOf(
+                                    Triple(Icons.Default.Code, "مساعد البرمجة", "اكتب لي كوداً قابلاً للتشغيل وساعدني على تصحيح الأخطاء."),
+                                    Triple(Icons.Default.School, "التعلّم والدراسة", "اشرح لي هذا الموضوع من الأساس مع أمثلة ثم اختبر فهمي."),
+                                    Triple(Icons.Default.Description, "الكتابة والتحرير", "ساعدني في صياغة النص التالي بلغة واضحة ومنظمة:"),
+                                    Triple(Icons.Default.Lightbulb, "تطوير الأفكار", "حوّل فكرتي إلى مشروع عملي بخطوات ومتطلبات واضحة:")
+                                )
+                                items(templates) { item ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth().clickable {
+                                            input = item.third
+                                            selectedTab = "chats"
+                                            activeChatId = null
+                                        },
+                                        colors = CardDefaults.cardColors(containerColor = surface),
+                                        shape = RoundedCornerShape(15.dp)
+                                    ) {
+                                        Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Box(Modifier.size(42.dp).background(primary.copy(alpha = .12f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                                                Icon(item.first, null, tint = primary)
+                                            }
+                                            Spacer(Modifier.width(12.dp))
+                                            Column(Modifier.weight(1f)) {
+                                                Text(item.second, color = foreground, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                                Text(item.third, color = muted, fontSize = 10.sp, maxLines = 2, lineHeight = 16.sp)
+                                            }
+                                            Icon(Icons.Default.ArrowBack, null, tint = muted, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        currentChat == null -> {
+                            Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                Box(Modifier.size(86.dp).background(Brush.linearGradient(listOf(primary, Color(0xFF122746))), RoundedCornerShape(25.dp)).border(1.dp, primary.copy(alpha = .4f), RoundedCornerShape(25.dp)), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(36.dp))
+                                }
+                                Spacer(Modifier.height(22.dp))
+                                Text("أهلاً بك في آفاق", color = foreground, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                                Text("اسأل، تعلّم، برمج، وحوّل أفكارك إلى مشاريع.", color = muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+                                Spacer(Modifier.height(22.dp))
+                                val ideas = listOf("مساعد البرمجة" to "ساعدني في بناء تطبيق خطوة بخطوة.", "الشرح والتعلّم" to "اشرح لي مفهوماً صعباً بطريقة سهلة.", "تطوير الأفكار" to "ساعدني في تحويل فكرة إلى مشروع.")
+                                ideas.forEach { (title, prompt) ->
+                                    OutlinedButton(onClick = { input = prompt }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = foreground), border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.linearGradient(listOf(primary.copy(alpha = .5f), accent.copy(alpha = .4f))))) {
+                                        Icon(Icons.Default.AutoAwesome, null, tint = primary, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(title, fontSize = 11.sp)
+                                        Spacer(Modifier.weight(1f))
+                                        Icon(Icons.Default.ArrowBack, null, tint = muted, modifier = Modifier.size(14.dp))
+                                    }
+                                }
+                                Text("لا تحتاج إلى إدخال مفاتيح أو تنزيل نماذج.", color = accent, fontSize = 9.sp, modifier = Modifier.padding(top = 16.dp))
+                            }
+                        }
+                        else -> {
+                            LazyColumn(
+                                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 13.dp),
+                                contentPadding = PaddingValues(vertical = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(currentChat.messages, key = { it.id }) { message ->
+                                    val isUser = message.role == "user"
+                                    Column(Modifier.fillMaxWidth(), horizontalAlignment = if (isUser) Alignment.Start else Alignment.End) {
+                                        Text(if (isUser) "أنت" else "آفاق AI", color = if (isUser) accent else primary, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
+                                        Surface(
+                                            color = if (isUser) surface2 else surface,
+                                            shape = RoundedCornerShape(15.dp),
+                                            modifier = Modifier.fillMaxWidth(.94f)
+                                        ) {
+                                            SelectionContainer {
+                                                Text(
+                                                    message.text.ifBlank { if (busy && !isUser) "آفاق يفكر..." else "" },
+                                                    color = foreground,
+                                                    fontSize = 13.sp,
+                                                    lineHeight = 21.sp,
+                                                    modifier = Modifier.padding(13.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Column(Modifier.fillMaxWidth().background(background).padding(horizontal = 11.dp, vertical = 8.dp)) {
+                        if (error.isNotBlank()) Text(error, color = Danger, fontSize = 10.sp, modifier = Modifier.padding(start = 5.dp, bottom = 7.dp))
+                        Row(
+                            Modifier.fillMaxWidth().background(surface, RoundedCornerShape(16.dp)).border(1.dp, primary.copy(alpha = .33f), RoundedCornerShape(16.dp)).padding(start = 12.dp, end = 7.dp, top = 7.dp, bottom = 7.dp),
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            BasicTextField(
+                                value = input,
+                                onValueChange = { input = it },
+                                modifier = Modifier.weight(1f).padding(horizontal = 5.dp, vertical = 10.dp),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = foreground, fontSize = 14.sp, textDirection = TextDirection.ContentOrRtl),
+                                cursorBrush = androidx.compose.ui.graphics.SolidColor(primary),
+                                decorationBox = { inner ->
+                                    Box {
+                                        if (input.isEmpty()) Text("اكتب سؤالك إلى آفاق...", color = muted, fontSize = 12.sp)
+                                        inner()
+                                    }
+                                },
+                                keyboardOptions = KeyboardOptions(imeAction = if (enterToSend) ImeAction.Send else ImeAction.Default),
+                                keyboardActions = KeyboardActions(onSend = { submit() })
+                            )
+                            IconButton(
+                                onClick = { submit() },
+                                enabled = input.isNotBlank() && !busy,
+                                modifier = Modifier.size(42.dp).background(primary, CircleShape)
+                            ) {
+                                if (busy) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                                else Icon(Icons.Default.ArrowUpward, null, tint = Color.White)
+                            }
+                        }
+                        Text("قد يخطئ الذكاء الاصطناعي؛ راجع المعلومات المهمة.", color = muted.copy(alpha = .8f), fontSize = 8.sp, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 7.dp, bottom = 2.dp))
+                    }
+                }
             }
+        }
+
+        if (settingsOpen) {
+            AlertDialog(
+                onDismissRequest = { settingsOpen = false },
+                containerColor = surface,
+                title = { Text("إعدادات آفاق", color = foreground, fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                        Text("المظهر والألوان", color = primary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            listOf("blue" to "أزرق", "green" to "أخضر", "light" to "فاتح").forEach { (value, label) ->
+                                FilterChip(selected = theme == value, onClick = { theme = value }, label = { Text(label, fontSize = 10.sp) })
+                            }
+                        }
+                        HorizontalDivider(color = muted.copy(alpha = .15f))
+                        Text("أسلوب الإجابة", color = primary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            listOf("concise" to "مختصر", "balanced" to "متوازن", "detailed" to "مفصل").forEach { (value, label) ->
+                                FilterChip(selected = responseStyle == value, onClick = { responseStyle = value }, label = { Text(label, fontSize = 10.sp) })
+                            }
+                        }
+                        HorizontalDivider(color = muted.copy(alpha = .15f))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("الإرسال بزر Enter", color = foreground, fontSize = 11.sp)
+                                Text("إيقافه يسمح بكتابة أسطر جديدة.", color = muted, fontSize = 9.sp)
+                            }
+                            Switch(checked = enterToSend, onCheckedChange = { enterToSend = it })
+                        }
+                        HorizontalDivider(color = muted.copy(alpha = .15f))
+                        Text("الخدمة والنموذج", color = primary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        Text("آفاق يتصل بخادم مركزي ويتولى اختيار النموذج. لا تدخل أي مفتاح API داخل التطبيق.", color = muted, fontSize = 10.sp, lineHeight = 17.sp)
+                        Text("سجل المحادثات محفوظ على هذا الجهاز فقط.", color = accent, fontSize = 10.sp)
+                        TextButton(onClick = { confirmClear = true }) {
+                            Icon(Icons.Default.DeleteSweep, null, tint = Danger, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(7.dp))
+                            Text("حذف جميع المحادثات", color = Danger, fontSize = 11.sp)
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { settingsOpen = false }) { Text("حفظ", color = primary) } },
+                dismissButton = { TextButton(onClick = { settingsOpen = false }) { Text("إغلاق", color = muted) } }
+            )
+        }
+
+        renameTarget?.let { target ->
+            AlertDialog(
+                onDismissRequest = { renameTarget = null },
+                containerColor = surface,
+                title = { Text("إعادة تسمية المحادثة", color = foreground) },
+                text = {
+                    OutlinedTextField(value = renameValue, onValueChange = { renameValue = it }, singleLine = true, label = { Text("اسم المحادثة") })
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        if (renameValue.isNotBlank()) updateChat(target.id) { it.copy(title = renameValue.trim().take(70)) }
+                        renameTarget = null
+                    }) { Text("حفظ", color = primary) }
+                },
+                dismissButton = { TextButton(onClick = { renameTarget = null }) { Text("إلغاء", color = muted) } }
+            )
+        }
+
+        deleteTarget?.let { target ->
+            AlertDialog(
+                onDismissRequest = { deleteTarget = null },
+                containerColor = surface,
+                title = { Text("حذف المحادثة؟", color = foreground) },
+                text = { Text("سيتم حذف «${target.title}» من هذا الجهاز.", color = muted, fontSize = 12.sp) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        chats = chats.filterNot { it.id == target.id }
+                        if (activeChatId == target.id) activeChatId = null
+                        deleteTarget = null
+                    }) { Text("حذف", color = Danger) }
+                },
+                dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("إلغاء", color = muted) } }
+            )
+        }
+
+        if (confirmClear) {
+            AlertDialog(
+                onDismissRequest = { confirmClear = false },
+                containerColor = surface,
+                title = { Text("حذف سجل المحادثات؟", color = foreground) },
+                text = { Text("سيتم حذف جميع المحادثات المحفوظة على هذا الجهاز.", color = muted, fontSize = 12.sp) },
+                confirmButton = {
+                    TextButton(onClick = { chats = emptyList(); activeChatId = null; confirmClear = false; settingsOpen = false }) {
+                        Text("حذف الكل", color = Danger)
+                    }
+                },
+                dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("إلغاء", color = muted) } }
+            )
         }
     }
 }
