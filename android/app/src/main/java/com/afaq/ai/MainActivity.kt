@@ -677,24 +677,56 @@ class MainActivity : ComponentActivity() {
                                 items(currentChat.messages, key = { it.id }) { message ->
                                     val isUser = message.role == "user"
                                     Column(Modifier.fillMaxWidth(), horizontalAlignment = if (isUser) Alignment.Start else Alignment.End) {
-                                        Text(if (isUser) "أنت" else "آفاق AI", color = if (isUser) accent else primary, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
+                                        Text(if (isUser) "أنت" else "AFAQ AI", color = if (isUser) accent else primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp))
                                         Surface(
-                                            color = if (isUser) primary.copy(alpha = .13f) else surface,
+                                            color = if (isUser) primary.copy(alpha = .13f) else Color.Transparent,
                                             shape = RoundedCornerShape(
                                                 topStart = 18.dp, topEnd = 18.dp,
                                                 bottomEnd = if (isUser) 5.dp else 18.dp,
                                                 bottomStart = if (isUser) 18.dp else 5.dp
                                             ),
-                                            modifier = Modifier.fillMaxWidth(if (isUser) .84f else .96f)
+                                            modifier = Modifier.fillMaxWidth(if (isUser) .84f else .98f)
                                         ) {
                                             SelectionContainer {
                                                 Text(
                                                     message.text.ifBlank { if (busy && !isUser) "آفاق يفكر..." else "" },
                                                     color = foreground,
-                                                    fontSize = 13.sp,
-                                                    lineHeight = 21.sp,
-                                                    modifier = Modifier.padding(13.dp)
+                                                    fontSize = 14.sp,
+                                                    lineHeight = 23.sp,
+                                                    modifier = Modifier.padding(if (isUser) 12.dp else 7.dp)
                                                 )
+                                            }
+                                        }
+                                        if (message.files.isNotEmpty()) {
+                                            Text("المرفقات: " + message.files.joinToString("، "), color = muted, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                                        }
+                                        generatedImages[message.id]?.forEach { imageData ->
+                                            val bitmap = remember(imageData) {
+                                                try {
+                                                    val encoded = imageData.substringAfter("base64,", "")
+                                                    val bytes = Base64.decode(encoded, Base64.DEFAULT)
+                                                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                                                } catch (_: Exception) { null }
+                                            }
+                                            if (bitmap != null) {
+                                                Image(
+                                                    bitmap = bitmap,
+                                                    contentDescription = "صورة أنشأها آفاق",
+                                                    modifier = Modifier.fillMaxWidth(.96f).heightIn(max = 360.dp).padding(top = 9.dp)
+                                                )
+                                            }
+                                        }
+                                        message.citations.forEach { citation ->
+                                            TextButton(
+                                                onClick = {
+                                                    try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(citation.url))) }
+                                                    catch (_: Exception) { error = "تعذّر فتح المصدر." }
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 7.dp, vertical = 1.dp)
+                                            ) {
+                                                Icon(Icons.Default.Link, null, modifier = Modifier.size(13.dp))
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(citation.title, fontSize = 9.sp, maxLines = 1)
                                             }
                                         }
                                     }
