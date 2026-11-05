@@ -153,7 +153,7 @@ export default function Home() {
 
   async function importHistory(file?: File) {
     if (!file) return;
-    if (file.size > 15_000_000) { setError('ملف السجل أكبر من الحد المسموح (5 MB).'); return; }
+    if (file.size > 15_000_000) { setError('ملف السجل أكبر من الحد المسموح (15 MB).'); return; }
     try {
       const parsed = JSON.parse(await file.text()) as { conversations?: unknown };
       if (!Array.isArray(parsed.conversations)) throw new Error('صيغة ملف السجل غير صحيحة.');
