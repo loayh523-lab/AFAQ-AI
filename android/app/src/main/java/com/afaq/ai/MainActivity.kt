@@ -129,7 +129,7 @@ class MainActivity : ComponentActivity() {
     private suspend fun sendPrompt(prompt: String, onChunk: (String) -> Unit) {
         val active = conversation ?: error("النموذج غير جاهز.")
         active.sendMessageAsync(prompt).catch { throw it }.collect { message ->
-            onChunk(message.toString())
+            onChunk(message.text)
         }
     }
 
@@ -282,7 +282,7 @@ class MainActivity : ComponentActivity() {
                             cursorBrush = androidx.compose.ui.graphics.SolidColor(Gold),
                             decorationBox = { inner -> Box { if (input.isEmpty()) Text("اكتب رسالتك إلى آفاق...", color = TextMuted, fontSize = 13.sp); inner() } },
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                            keyboardActions = KeyboardActions(onSend = { submit(input, { input = "" }, { error = it }, { messages = messages + it }, { messageId++ }, scope, onSend, { busy = it }) })
+                            keyboardActions = KeyboardActions(onSend = { submit(input, { input = "" }, { error = it }, { messages = messages + it }, { id, text -> messages = messages.map { item -> if (item.id == id) item.copy(text = text) else item } }, scope, onSend, { busy = it }) })
                         )
                         IconButton(onClick = { submit(input, { input = "" }, { error = it }, { messages = messages + it }, { messageId++ }, scope, onSend, { busy = it }) }, enabled = input.isNotBlank() && !busy, modifier = Modifier.size(42.dp).background(Gold, CircleShape)) {
                             Icon(Icons.Default.ArrowUpward, null, tint = Ink)
@@ -302,7 +302,7 @@ class MainActivity : ComponentActivity() {
         clearInput: () -> Unit,
         setError: (String) -> Unit,
         append: (ChatMessage) -> Unit,
-        nextId: () -> Unit,
+        updateMessage: (Long, String) -> Unit,
         scope: kotlinx.coroutines.CoroutineScope,
         onSend: suspend (String, (String) -> Unit) -> Unit,
         setBusy: (Boolean) -> Unit
@@ -311,7 +311,6 @@ class MainActivity : ComponentActivity() {
         if (prompt.isEmpty()) return
         clearInput()
         setError("")
-        nextId()
         val id = System.currentTimeMillis()
         append(ChatMessage(id, true, prompt))
         append(ChatMessage(id + 1, false, ""))
@@ -321,9 +320,11 @@ class MainActivity : ComponentActivity() {
             try {
                 onSend(prompt) { chunk ->
                     response.append(chunk)
+                    updateMessage(id + 1, response.toString())
                 }
             } catch (t: Throwable) {
                 setError(t.message ?: "حدث خطأ أثناء التوليد")
+                updateMessage(id + 1, "تعذّر إنشاء الإجابة. جرّب مرة أخرى.")
             } finally {
                 setBusy(false)
             }
