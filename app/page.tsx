@@ -142,6 +142,55 @@ export default function Home() {
     URL.revokeObjectURL(url);
   }
 
+  function editMessage(chat: ChatSession, message: Message) {
+    const index = chat.messages.findIndex(item => item.id === message.id);
+    if (index < 0) return;
+    updateSession(chat.id, current => ({ ...current, messages: current.messages.slice(0, index) }));
+    setActiveId(chat.id);
+    setTab('chats');
+    setInput(message.content);
+    setError('');
+    inputRef.current?.focus();
+  }
+
+  async function regenerateAnswer(chat: ChatSession) {
+    if (loading) return;
+    let userIndex = -1;
+    for (let i = chat.messages.length - 1; i >= 0; i--) {
+      if (chat.messages[i].role === 'user') { userIndex = i; break; }
+    }
+    if (userIndex < 0) return;
+    const base = chat.messages.slice(0, userIndex + 1);
+    const assistant: Message = { id: crypto.randomUUID(), role: 'assistant', content: '', createdAt: Date.now() };
+    updateSession(chat.id, current => ({ ...current, updatedAt: Date.now(), messages: [...base, assistant] }));
+    setActiveId(chat.id);
+    setLoading(true);
+    setError('');
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: base.slice(-20).map(({ role, content }) => ({ role, content })),
+          preferences: { responseStyle: settings.responseStyle },
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'تعذّر إعادة إنشاء الإجابة.');
+      if (typeof data.answer !== 'string' || !data.answer.trim()) throw new Error('وصل رد غير صالح من الخدمة.');
+      updateSession(chat.id, current => ({
+        ...current,
+        updatedAt: Date.now(),
+        messages: current.messages.map(message => message.id === assistant.id ? { ...message, content: data.answer } : message),
+      }));
+    } catch (e) {
+      updateSession(chat.id, current => ({ ...current, messages: current.messages.filter(message => message.id !== assistant.id) }));
+      setError(e instanceof Error ? e.message : 'تعذّرت إعادة إنشاء الإجابة.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function send(raw = input) {
     const value = raw.trim();
     if (!value || loading) return;
@@ -273,7 +322,11 @@ export default function Home() {
                   <div className="message-body">
                     <div className="message-heading"><div className="message-name">{message.role === 'assistant' ? 'آفاق AI' : 'أنت'}</div><time>{formatDate(message.createdAt)}</time></div>
                     <div className="message-text" style={{ fontSize: settings.fontSize }}>{message.content || (loading && message.role === 'assistant' ? <span className="typing"><i /><i /><i /> آفاق يفكر</span> : '')}</div>
-                    {message.role === 'assistant' && message.content && <div className="message-tools"><button onClick={() => copyText(message.id, message.content)}><Copy size={13} /> {copiedId === message.id ? 'تم النسخ' : 'نسخ الإجابة'}</button></div>}
+                    <div className="message-tools">
+                      {message.role === 'assistant' && message.content && <button onClick={() => copyText(message.id, message.content)}><Copy size={13} /> {copiedId === message.id ? 'تم النسخ' : 'نسخ الإجابة'}</button>}
+                      {message.role === 'user' && <button onClick={() => editMessage(activeChat, message)}><Pencil size={13} /> تعديل الطلب</button>}
+                      {message.role === 'assistant' && message.content && message.id === activeChat.messages[activeChat.messages.length - 1]?.id && <button onClick={() => regenerateAnswer(activeChat)}><WandSparkles size={13} /> إعادة إنشاء الإجابة</button>}
+                    </div>
                   </div>
                 </article>
               ))}
