@@ -583,7 +583,7 @@ class MainActivity : ComponentActivity() {
             gesturesEnabled = true
         ) {
             MaterialTheme(colorScheme = if (isLight) lightColorScheme(primary = primary, secondary = accent, background = background, surface = surface, onBackground = foreground, onSurface = foreground) else darkColorScheme(primary = primary, secondary = accent, background = background, surface = surface, onPrimary = Color.White, onBackground = foreground, onSurface = foreground)) {
-                Column(Modifier.fillMaxSize().background(background)) {
+                Column(Modifier.fillMaxSize().background(background).imePadding()) {
                     Row(
                         Modifier.fillMaxWidth().background(surface).padding(horizontal = 11.dp, vertical = 9.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -600,6 +600,11 @@ class MainActivity : ComponentActivity() {
                                 Text("AI", color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                             }
                         }
+                        IconButton(onClick = {
+                            val missing = Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                            if (missing) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            else notificationsEnabled = !notificationsEnabled
+                        }) { Icon(Icons.Default.Notifications, "الإشعارات", tint = if (notificationsEnabled) primary else muted) }
                         IconButton(onClick = { settingsOpen = true }) { Icon(Icons.Default.Settings, "الإعدادات", tint = muted) }
                         IconButton(onClick = { startNewChat() }) { Icon(Icons.Default.AddComment, "محادثة جديدة", tint = primary) }
                     }
