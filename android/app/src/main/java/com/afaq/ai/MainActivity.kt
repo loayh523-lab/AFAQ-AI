@@ -720,6 +720,40 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         Row(
+                            Modifier.fillMaxWidth().padding(bottom = 7.dp),
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedButton(
+                                onClick = { documentPicker.launch(arrayOf("image/*", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/plain", "text/csv")) },
+                                enabled = !busy,
+                                contentPadding = PaddingValues(horizontal = 9.dp, vertical = 5.dp),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.AttachFile, null, modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("ملفات", fontSize = 10.sp)
+                            }
+                            FilterChip(selected = webSearch, onClick = { webSearch = !webSearch }, enabled = !busy, label = { Text("بحث الويب", fontSize = 10.sp) })
+                            FilterChip(selected = generateImage, onClick = { generateImage = !generateImage }, enabled = !busy, label = { Text("إنشاء صورة", fontSize = 10.sp) })
+                        }
+                        if (attachments.isNotEmpty()) {
+                            Row(Modifier.fillMaxWidth().padding(bottom = 7.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                attachments.forEachIndexed { index, file ->
+                                    Surface(color = surface2, shape = RoundedCornerShape(9.dp)) {
+                                        Row(Modifier.padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.Description, null, tint = muted, modifier = Modifier.size(13.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(file.name, color = muted, fontSize = 9.sp, maxLines = 1)
+                                            IconButton(onClick = { attachments = attachments.filterIndexed { itemIndex, _ -> itemIndex != index } }, modifier = Modifier.size(20.dp)) {
+                                                Icon(Icons.Default.Close, "إزالة", tint = muted, modifier = Modifier.size(12.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Row(
                             Modifier.fillMaxWidth().background(surface, RoundedCornerShape(16.dp)).border(1.dp, primary.copy(alpha = .33f), RoundedCornerShape(16.dp)).padding(start = 12.dp, end = 7.dp, top = 7.dp, bottom = 7.dp),
                             verticalAlignment = Alignment.Bottom
                         ) {
@@ -733,7 +767,7 @@ class MainActivity : ComponentActivity() {
                                 cursorBrush = androidx.compose.ui.graphics.SolidColor(primary),
                                 decorationBox = { inner ->
                                     Box {
-                                        if (input.isEmpty()) Text("اكتب سؤالك إلى آفاق...", color = muted, fontSize = 12.sp)
+                                        if (input.isEmpty() && attachments.isEmpty()) Text("اسأل آفاق أي شيء...", color = muted, fontSize = 12.sp)
                                         inner()
                                     }
                                 },
@@ -747,7 +781,7 @@ class MainActivity : ComponentActivity() {
                             )
                             IconButton(
                                 onClick = { submit() },
-                                enabled = input.isNotBlank() && !busy,
+                                enabled = (input.isNotBlank() || attachments.isNotEmpty()) && !busy,
                                 modifier = Modifier.size(42.dp).background(primary, CircleShape)
                             ) {
                                 if (busy) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
@@ -787,6 +821,21 @@ class MainActivity : ComponentActivity() {
                                 Text("إيقافه يسمح بكتابة أسطر جديدة.", color = muted, fontSize = 9.sp)
                             }
                             Switch(checked = enterToSend, onCheckedChange = { enterToSend = it })
+                        }
+                        HorizontalDivider(color = muted.copy(alpha = .15f))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("الإشعارات", color = foreground, fontSize = 11.sp)
+                                Text("تنبيه عند اكتمال الرد أثناء استخدام تطبيق آخر.", color = muted, fontSize = 9.sp)
+                            }
+                            Switch(
+                                checked = notificationsEnabled,
+                                onCheckedChange = { enabled ->
+                                    val missing = Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                                    if (enabled && missing) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    else notificationsEnabled = enabled
+                                }
+                            )
                         }
                         HorizontalDivider(color = muted.copy(alpha = .15f))
                         Text("الخدمة والنموذج", color = primary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
