@@ -1,6 +1,7 @@
 package com.afaq.ai
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -126,7 +127,7 @@ private fun saveChats(context: Context, chats: List<AfaqChat>) {
 private fun postChat(messages: List<AfaqMessage>, responseStyle: String): String {
     val endpoint = BuildConfig.AFAQ_API_BASE_URL.trimEnd('/') + "/api/chat"
     val payloadMessages = JSONArray()
-    messages.filter { it.text.isNotBlank() && (it.role == "user" || it.role == "assistant") }.forEach {
+    messages.takeLast(20).filter { it.text.isNotBlank() && (it.role == "user" || it.role == "assistant") }.forEach {
         payloadMessages.put(JSONObject().put("role", it.role).put("content", it.text))
     }
     val payload = JSONObject()
@@ -212,6 +213,7 @@ class MainActivity : ComponentActivity() {
         val filteredChats = chats.filter { it.title.contains(search, ignoreCase = true) }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         LaunchedEffect(drawerOpen) { if (drawerOpen) drawerState.open() else drawerState.close() }
+        LaunchedEffect(drawerState.currentValue) { drawerOpen = drawerState.currentValue == DrawerValue.Open }
 
         fun updateChat(id: String, transform: (AfaqChat) -> AfaqChat) {
             chats = chats.map { if (it.id == id) transform(it) else it }.sortedByDescending { it.updatedAt }
@@ -339,6 +341,27 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     HorizontalDivider(color = muted.copy(alpha = .18f))
+                    NavigationDrawerItem(
+                        label = { Text("تصدير سجل المحادثات", fontSize = 12.sp) },
+                        selected = false,
+                        onClick = {
+                            drawerOpen = false
+                            val exportText = chats.joinToString("\n\n====================\n\n") { chat ->
+                                "# ${chat.title}\n\n" + chat.messages.joinToString("\n\n") { message ->
+                                    (if (message.role == "user") "أنت" else "آفاق") + "\n" + message.text
+                                }
+                            }
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, "سجل محادثات آفاق")
+                                putExtra(Intent.EXTRA_TEXT, exportText)
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "تصدير سجل آفاق"))
+                        },
+                        icon = { Icon(Icons.Default.FileDownload, null) },
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        colors = NavigationDrawerItemDefaults.colors(unselectedIconColor = primary, unselectedTextColor = foreground)
+                    )
                     NavigationDrawerItem(
                         label = { Text("الإعدادات", fontSize = 12.sp) },
                         selected = false,
