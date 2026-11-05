@@ -142,7 +142,7 @@ private fun postChat(messages: List<AfaqMessage>, responseStyle: String): String
         setRequestProperty("Content-Type", "application/json; charset=utf-8")
         setRequestProperty("Accept", "application/json")
     }
-    try {
+    return try {
         connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
         val code = connection.responseCode
         val stream = if (code in 200..299) connection.inputStream else connection.errorStream
