@@ -12,8 +12,8 @@ android {
         applicationId = "com.afaq.ai"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
         buildConfigField("String", "AFAQ_API_BASE_URL", "\"https://afaq-ai-git-feature-server-managed-ai-loay523-lab.vercel.app\"")
     }
 
