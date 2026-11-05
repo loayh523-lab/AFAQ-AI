@@ -2,33 +2,44 @@
 
 **Intelligence Beyond Limits**
 
-AFAQ AI is an Arabic-first AI workspace. End users do not enter provider API keys or download model weights.
+AFAQ AI is an Arabic-first AI workspace for chat, learning, coding and practical project planning.
 
-## Current preview
+## Implemented in this preview
 
-- Arabic RTL chat interface.
-- Server-side `POST /api/chat` endpoint.
-- Server-side authentication to Vercel AI Gateway using the deployment's Vercel OIDC identity; no provider secret is embedded in the APK or browser.
-- Default model: `zai/glm-4.6v-flash` (listed with zero token price in the Gateway catalog at the time of implementation). Availability and any gateway/account requirements can change.
-- Request validation, payload limits, bounded history, timeouts, and generic provider error messages.
+- Responsive Arabic RTL interface using midnight blue, black and green.
+- Persistent conversation history in the user's browser and Android app storage.
+- Search, rename, delete, and export conversation history (web).
+- Real preferences: color themes, response style, font size and Enter-to-send behavior.
+- Focused starter tools for coding, study, writing, ideation and project planning.
+- Server-side chat endpoint at `POST /api/chat`; no provider key or model download is required from end users.
+- Android app connects to the same managed endpoint and stores chat history locally.
+- The model is configured on the server; the current default is the free-priced `nvidia/nemotron-3.5-lightning-free` model listed by Vercel AI Gateway. Provider availability and account eligibility may change.
 
-## Server configuration
+## Server operation
 
-Vercel deployments provide `VERCEL_OIDC_TOKEN` automatically. Optionally set `AFAQ_MODEL` in the hosting environment to a currently supported AI Gateway model ID. Do not add provider keys to the app or commit secrets.
+Vercel deployments use the deployment's OIDC identity to authenticate server-side requests to AI Gateway. The client does not receive the token. The optional `AFAQ_MODEL` variable can select another currently supported model ID.
+
+Vercel's AI Gateway documentation says its free monthly credit tier requires a valid payment method for team verification; this project does not configure or add any payment method. The selected model is listed with zero input/output token price, but live service availability still needs to be confirmed on the deployment.
 
 ## Run locally
 
-Requires Node.js 20.9 or newer. Local development needs a valid Vercel OIDC token from a linked Vercel project, or an approved server-side Gateway credential. The Android/browser user never enters it.
+Requires Node.js 20.9 or newer.
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Deploy
+Local server-side model requests require an authorized Vercel OIDC context. End users never enter credentials into the app.
 
-Deploy this Next.js project to Vercel. The Vercel deployment identity is used for AI Gateway requests. Check the current Gateway model catalog and account eligibility before enabling public traffic.
+## Build Android
 
-## Privacy and safeguards
+```bash
+gradle --no-daemon :android:app:assembleDebug
+```
 
-Chat messages are sent to the selected model provider through AI Gateway. Do not send passwords, payment details, or other sensitive information. Add authentication, rate limiting, abuse controls, and a clear privacy notice before opening the service publicly.
+## Privacy and limitations
+
+Conversation history is stored locally in the browser or on the Android device. Messages sent for generation are forwarded by the AFAQ server to the configured model provider. Do not send passwords or other confidential information.
+
+Before opening the service broadly, add authentication, server-side rate limiting/abuse protection, a published privacy policy, account controls and monitoring. Image generation, file uploads, code execution sandboxes and cross-device cloud conversation sync are not implemented in this preview.
