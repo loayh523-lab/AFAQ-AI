@@ -73,6 +73,7 @@ private const val PREFS_NAME = "afaq_preferences"
 private const val HISTORY_KEY = "chat_history_v2"
 
 data class AfaqCitation(val title: String, val url: String)
+data class AfaqGeneratedFile(val name: String, val url: String, val expiresAt: Long = 0L)
 data class AfaqAttachment(val name: String, val type: String, val data: String)
 
 data class AfaqMessage(
@@ -81,7 +82,8 @@ data class AfaqMessage(
     val text: String,
     val timestamp: Long,
     val files: List<String> = emptyList(),
-    val citations: List<AfaqCitation> = emptyList()
+    val citations: List<AfaqCitation> = emptyList(),
+    val generatedFiles: List<AfaqGeneratedFile> = emptyList()
 )
 
 data class AfaqChat(
@@ -115,6 +117,12 @@ private fun loadChats(context: Context): List<AfaqChat> {
                                     val citation = array.optJSONObject(index) ?: continue
                                     add(AfaqCitation(citation.optString("title"), citation.optString("url")))
                                 } }
+                            } ?: emptyList(),
+                            generatedFiles = message.optJSONArray("generatedFiles")?.let { array ->
+                                buildList { for (index in 0 until array.length()) {
+                                    val file = array.optJSONObject(index) ?: continue
+                                    add(AfaqGeneratedFile(file.optString("name"), file.optString("url"), file.optLong("expiresAt")))
+                                } }
                             } ?: emptyList()
                         ))
                     }
@@ -146,6 +154,11 @@ private fun saveChats(context: Context, chats: List<AfaqChat>) {
                 .put("citations", JSONArray().apply {
                     message.citations.forEach { citation ->
                         put(JSONObject().put("title", citation.title).put("url", citation.url))
+                    }
+                })
+                .put("generatedFiles", JSONArray().apply {
+                    message.generatedFiles.forEach { file ->
+                        put(JSONObject().put("name", file.name).put("url", file.url).put("expiresAt", file.expiresAt))
                     }
                 }))
         }
@@ -435,9 +448,20 @@ class MainActivity : ComponentActivity() {
                                                 add(AfaqCitation(citation.optString("title"), citation.optString("url")))
                                             }
                                         }
+                                        val fileList = event.optJSONArray("files") ?: JSONArray()
+                                        val outputFiles = buildList {
+                                            for (index in 0 until fileList.length()) {
+                                                val file = fileList.optJSONObject(index) ?: continue
+                                                add(AfaqGeneratedFile(
+                                                    file.optString("name"),
+                                                    file.optString("url"),
+                                                    file.optLong("expiresAt")
+                                                ))
+                                            }
+                                        }
                                         updateChat(chatId) { chat ->
                                             chat.copy(messages = chat.messages.map {
-                                                if (it.id == assistantMessage.id) it.copy(citations = sources) else it
+                                                if (it.id == assistantMessage.id) it.copy(citations = sources, generatedFiles = outputFiles) else it
                                             })
                                         }
                                     }
@@ -727,6 +751,22 @@ class MainActivity : ComponentActivity() {
                                                 Icon(Icons.Default.Link, null, modifier = Modifier.size(13.dp))
                                                 Spacer(Modifier.width(4.dp))
                                                 Text(citation.title, fontSize = 9.sp, maxLines = 1)
+                                            }
+                                        }
+                                        message.generatedFiles.forEach { file ->
+                                            OutlinedButton(
+                                                onClick = {
+                                                    try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(file.url))) }
+                                                    catch (_: Exception) { error = "تعذّر فتح رابط تنزيل الملف." }
+                                                },
+                                                modifier = Modifier.fillMaxWidth(.96f).padding(top = 5.dp),
+                                                contentPadding = PaddingValues(horizontal = 9.dp, vertical = 5.dp),
+                                                shape = RoundedCornerShape(10.dp)
+                                            ) {
+                                                Icon(Icons.Default.Download, null, tint = accent, modifier = Modifier.size(15.dp))
+                                                Spacer(Modifier.width(7.dp))
+                                                Text(file.name, fontSize = 10.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                                                Text("تنزيل", fontSize = 9.sp, color = primary)
                                             }
                                         }
                                     }
