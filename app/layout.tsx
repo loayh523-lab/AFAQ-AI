@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'AFAQ AI — آفاق',
-  description: 'A thoughtful multi-model AI workspace for ideas, coding, and creation.',
+  description: 'A private, browser-based AI workspace powered by local open models.',
   applicationName: 'AFAQ AI',
 };
 export const viewport: Viewport = { themeColor: '#071b17', width: 'device-width', initialScale: 1 };
