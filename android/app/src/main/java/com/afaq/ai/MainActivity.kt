@@ -2,6 +2,7 @@ package com.afaq.ai
 
 import android.Manifest
 import android.app.Notification
+import android.app.PendingIntent
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -11,6 +12,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.content.Intent
 import android.os.Bundle
+import android.os.Build
 import android.os.Build
 import android.provider.OpenableColumns
 import android.util.Base64
@@ -255,9 +257,45 @@ private fun chatTitle(text: String): String {
 }
 
 class MainActivity : ComponentActivity() {
+    private var appInBackground = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel("afaq_replies", "ردود آفاق", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "تنبيه عند اكتمال رد آفاق أثناء استخدام تطبيق آخر"
+            }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
         setContent { AfaqApp() }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        appInBackground = false
+    }
+
+    override fun onStop() {
+        appInBackground = true
+        super.onStop()
+    }
+
+    private fun notifyReply(title: String, message: String) {
+        if (!appInBackground) return
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        val intent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this, 7001, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0
+        )
+        val notification = Notification.Builder(this, "afaq_replies")
+            .setSmallIcon(R.drawable.afaq_launcher_foreground)
+            .setContentTitle(title.ifBlank { "AFAQ AI" })
+            .setContentText(message.take(130))
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java).notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
     }
 
     @Composable
@@ -282,13 +320,37 @@ class MainActivity : ComponentActivity() {
         var renameValue by remember { mutableStateOf("") }
         var deleteTarget by remember { mutableStateOf<AfaqChat?>(null) }
         var confirmClear by remember { mutableStateOf(false) }
+        var attachments by remember { mutableStateOf<List<AfaqAttachment>>(emptyList()) }
+        var webSearch by remember { mutableStateOf(preferences.getBoolean("webSearch", true)) }
+        var generateImage by remember { mutableStateOf(false) }
+        var notificationsEnabled by remember { mutableStateOf(preferences.getBoolean("notificationsEnabled", true)) }
+        var generatedImages by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
+
+        val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) notificationsEnabled = true else error = "إذن الإشعارات غير مفعّل. تقدر تفعّله من إعدادات الجهاز."
+        }
+        val documentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+            if (uris.isNotEmpty()) {
+                scope.launch {
+                    try {
+                        val loaded = withContext(Dispatchers.IO) { uris.take(6).map { readAttachment(context, it) } }
+                        attachments = (attachments + loaded).take(6)
+                        error = ""
+                    } catch (exception: Exception) {
+                        error = exception.message ?: "تعذّر فتح الملف."
+                    }
+                }
+            }
+        }
 
         LaunchedEffect(chats) { saveChats(context, chats) }
-        LaunchedEffect(theme, responseStyle, enterToSend) {
+        LaunchedEffect(theme, responseStyle, enterToSend, webSearch, notificationsEnabled) {
             preferences.edit()
                 .putString("theme", theme)
                 .putString("responseStyle", responseStyle)
                 .putBoolean("enterToSend", enterToSend)
+                .putBoolean("webSearch", webSearch)
+                .putBoolean("notificationsEnabled", notificationsEnabled)
                 .apply()
         }
 
