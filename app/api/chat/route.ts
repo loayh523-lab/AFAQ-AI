@@ -209,13 +209,16 @@ export async function POST(request: NextRequest) {
           "افهم المطلوب قبل الإجابة. في الرياضيات والعلوم اعرض القانون والتعويض والخطوات والوحدات ثم تحقق من النتيجة. في الواجبات علّم المستخدم ولا تخترع معلومات.",
           "في البرمجة اكتب حلولاً قابلة للتشغيل، واذكر الملفات والخطوات والاختبارات عند الحاجة. عند تحليل صورة أو ملف استند إلى محتواه فعلاً واذكر أي جزء غير واضح.",
           "عند استخدام البحث أدرج مصادر واضحة داخل الإجابة. لا تدّعِ أنك بحثت إذا لم تستخدم أداة البحث.",
-          "إذا طُلب إنشاء صورة فاستخدم أداة توليد الصور عندما تكون مفعّلة. وإذا احتجت إلى حسابات دقيقة أو تحليل بيانات فاستخدم أداة Python.",
+          "عند الحاجة إلى حسابات أو تحليل بيانات أو فحص ملفات، استخدم python tool (أداة Python) ونفّذ الحساب فعلياً قبل عرض النتيجة. لا تتظاهر بتشغيل كود لم يتم تشغيله.",
+          "عندما يطلب المستخدم ملفاً قابلاً للتنزيل مثل PDF أو DOCX أو XLSX أو PPTX، أنشئ الملف فعلياً باستخدام python tool، ثم اذكر بوضوح أي ملف تم إنشاؤه وأي تنسيق لم تتمكن من توفيره.",
+          "إذا طُلب إنشاء صورة فاستخدم أداة توليد الصور عندما تكون مفعّلة. لا تقل إنك أنشأت صورة ما لم تُرجع الأداة صورة فعلية.",
           "لا تختلق مصادر أو نتائج تنفيذ. إذا لم تتمكن من تنفيذ شيء، قل ذلك بوضوح.",
           styleInstruction,
         ].join("\n"),
         reasoning: { effort: process.env.AFAQ_REASONING_EFFORT || "medium" },
         input,
         tools,
+        ...(payload.preferences?.generateImage === true ? { tool_choice: { type: "image_generation" } } : {}),
         max_output_tokens: 6000,
         stream: true,
       }),
@@ -240,6 +243,8 @@ export async function POST(request: NextRequest) {
         let buffer = "";
         let answer = "";
         const citations: Array<{ title: string; url: string }> = [];
+        const seenImageCalls = new Set<string>();
+        let streamFailure = "";
         let closed = false;
 
         const emit = (event: Record<string, unknown>) => {
@@ -262,7 +267,11 @@ export async function POST(request: NextRequest) {
           if (event.type === "response.output_item.done") {
             const item = event.item;
             if (item?.type === "image_generation_call" && typeof item.result === "string") {
-              emit({ type: "image", data: item.result, mimeType: "image/png" });
+              const imageKey = typeof item.id === "string" ? item.id : item.result.slice(0, 48);
+              if (!seenImageCalls.has(imageKey)) {
+                seenImageCalls.add(imageKey);
+                emit({ type: "image", data: item.result, mimeType: "image/png" });
+              }
             }
             if (item?.type === "message") citations.push(...collectCitations(item));
           }
@@ -271,13 +280,18 @@ export async function POST(request: NextRequest) {
             for (const item of event.response?.output ?? []) {
               if (item?.type === "message") citations.push(...collectCitations(item));
               if (item?.type === "image_generation_call" && typeof item.result === "string") {
-                emit({ type: "image", data: item.result, mimeType: "image/png" });
+                const imageKey = typeof item.id === "string" ? item.id : item.result.slice(0, 48);
+                if (!seenImageCalls.has(imageKey)) {
+                  seenImageCalls.add(imageKey);
+                  emit({ type: "image", data: item.result, mimeType: "image/png" });
+                }
               }
             }
           }
 
           if (event.type === "response.failed" || event.type === "error") {
-            emit({ type: "error", message: "تعذّر إكمال الرد من خدمة الذكاء الاصطناعي. أعد المحاولة." });
+            streamFailure = "تعذّر إكمال الرد من خدمة الذكاء الاصطناعي. أعد المحاولة.";
+            emit({ type: "error", message: streamFailure });
           }
         };
 
@@ -295,13 +309,15 @@ export async function POST(request: NextRequest) {
             }
           }
           if (buffer.trim()) handleEvent(buffer.trim());
-          emit({
-            type: "done",
-            answer,
-            citations: citations.filter((citation, index, all) =>
-              all.findIndex((other) => other.url === citation.url) === index
-            ),
-          });
+          if (!streamFailure) {
+            emit({
+              type: "done",
+              answer,
+              citations: citations.filter((citation, index, all) =>
+                all.findIndex((other) => other.url === citation.url) === index
+              ),
+            });
+          }
         } catch (error) {
           console.error("AFAQ stream error", error instanceof Error ? error.message : "unknown");
           emit({ type: "error", message: "انقطع الاتصال أثناء إنشاء الرد. أعد المحاولة." });
