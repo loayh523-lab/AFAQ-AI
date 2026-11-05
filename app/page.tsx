@@ -1,6 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import {
   ArrowUp, Bot, Check, ChevronDown, Code2, Copy, Download, FileText, History,
   Lightbulb, Menu, MessageSquarePlus, MoreHorizontal, Pencil, Plus, Search,
@@ -504,7 +508,21 @@ export default function Home() {
                   <div className="message-avatar">{message.role === 'assistant' ? <Sparkles size={17} /> : 'أ'}</div>
                   <div className="message-body">
                     <div className="message-heading"><div className="message-name">{message.role === 'assistant' ? 'آفاق AI' : 'أنت'}</div><time>{formatDate(message.createdAt)}</time></div>
-                    <div className="message-text" style={{ fontSize: settings.fontSize }}>{message.content || (loading && message.role === 'assistant' ? <span className="typing"><i /><i /><i /> آفاق يفكر</span> : '')}</div>
+                    <div className="message-text" style={{ fontSize: settings.fontSize }}>
+                      {message.content ? (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                          skipHtml
+                          components={{
+                            a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer">{children}</a>,
+                            pre: ({ children }) => <pre className="code-block">{children}</pre>,
+                            table: ({ children }) => <div className="table-scroll"><table>{children}</table></div>,
+                            img: ({ src, alt }) => <img src={src || ""} alt={alt || ""} loading="lazy" />,
+                          }}
+                        >{message.content}</ReactMarkdown>
+                      ) : (loading && message.role === 'assistant' ? <span className="typing"><i /><i /><i /> آفاق يفكر</span> : '')}
+                    </div>
                     {message.files?.length ? <div className="message-attachments">{message.files.map((file, index) => <span key={index}><FileText size={13} /> {file.name}</span>)}</div> : null}
                     {generatedImages[message.id]?.map((image, index) => <img key={index} className="generated-image" src={image} alt="صورة أنشأها آفاق" />)}
                     {message.citations?.length ? <div className="message-citations"><b>المصادر</b>{message.citations.map((citation, index) => <a key={index} href={citation.url} target="_blank" rel="noreferrer">{citation.title}</a>)}</div> : null}
