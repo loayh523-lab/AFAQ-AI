@@ -160,6 +160,7 @@ class MainActivity : ComponentActivity() {
         var progress by remember { mutableIntStateOf(0) }
         var status by remember { mutableStateOf(if (downloaded) "النموذج محفوظ على جهازك" else "حمّل النموذج للبدء") }
         var error by remember { mutableStateOf("") }
+        var settingsOpen by remember { mutableStateOf(false) }
         var input by remember { mutableStateOf("") }
         var messages by remember { mutableStateOf(listOf<ChatMessage>()) }
         var messageId by remember { mutableLongStateOf(0L) }
@@ -187,6 +188,13 @@ class MainActivity : ComponentActivity() {
                             Spacer(Modifier.width(6.dp))
                             Text(if (ready) "جاهز" else "محلي", color = if (ready) Mint else Gold, fontSize = 10.sp)
                         }
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    IconButton(onClick = { settingsOpen = true }) {
+                        Icon(Icons.Default.Settings, "الإعدادات", tint = TextMuted)
+                    }
+                    IconButton(onClick = { messages = emptyList(); error = "" }) {
+                        Icon(Icons.Default.AddComment, "محادثة جديدة", tint = Gold)
                     }
                 }
                 HorizontalDivider(color = Color.White.copy(alpha = .07f))
@@ -293,6 +301,29 @@ class MainActivity : ComponentActivity() {
                 } else {
                     Text("AFAQ AI  ·  ON-DEVICE INTELLIGENCE", color = TextMuted.copy(alpha = .6f), fontSize = 8.sp, letterSpacing = 1.3.sp, modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 15.dp))
                 }
+            }
+        }
+            if (settingsOpen) {
+                AlertDialog(
+                    onDismissRequest = { settingsOpen = false },
+                    containerColor = Panel,
+                    title = { Text("إعدادات آفاق", color = TextMain, fontWeight = FontWeight.Bold) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                            Text("النموذج", color = Gold, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                            Text("Qwen3 · 0.6B — يعمل محلياً على جهازك", color = TextMain, fontSize = 13.sp)
+                            HorizontalDivider(color = Color.White.copy(alpha = .08f))
+                            Text("حالة التشغيل: " + if (ready) "جاهز" else if (downloaded) "تم التنزيل" else "لم يتم التنزيل", color = TextMuted, fontSize = 12.sp)
+                            Text("الخصوصية: نص المحادثة لا يُرسل إلى خادم خارجي. ملف النموذج يُنزّل من مستودع النموذج عند أول استخدام.", color = TextMuted, fontSize = 11.sp, lineHeight = 18.sp)
+                            Text("الإصدار التجريبي 0.1.0", color = TextMuted, fontSize = 10.sp)
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { settingsOpen = false }) {
+                            Text("إغلاق", color = Gold)
+                        }
+                    }
+                )
             }
         }
     }
