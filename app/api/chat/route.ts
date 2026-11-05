@@ -6,11 +6,11 @@ export const maxDuration = 30;
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
 export async function POST(request: NextRequest) {
-  const apiKey = process.env.AFAQ_PROVIDER_API_KEY || process.env.OPENAI_API_KEY;
-  const endpoint = process.env.AFAQ_PROVIDER_URL || "https://api.openai.com/v1/chat/completions";
-  const model = process.env.AFAQ_MODEL || "gpt-4o-mini";
+  const gatewayToken = process.env.VERCEL_OIDC_TOKEN;
+  const endpoint = "https://ai-gateway.vercel.sh/v1/chat/completions";
+  const model = process.env.AFAQ_MODEL || "zai/glm-4.6v-flash";
 
-  if (!apiKey) {
+  if (!gatewayToken) {
     return NextResponse.json(
       { error: "خدمة آفاق لم تُفعّل بعد. يرجى المحاولة لاحقاً." },
       { status: 503 },
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${gatewayToken}`,
       },
       body: JSON.stringify({
         model,
